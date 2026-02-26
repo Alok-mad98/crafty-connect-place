@@ -50,13 +50,19 @@ export default function Home() {
 
   return (
     <div className="relative">
-      {/* ── HERO ── */}
+      {/* ── HERO WITH EYE OVERLAY ── */}
       <motion.section
         ref={heroRef}
         style={{ y: heroY, opacity: heroOpacity }}
-        className="min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-14"
+        className="relative min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-14 overflow-hidden"
       >
-        <div className="max-w-[1400px] mx-auto w-full">
+        {/* Eye canvas positioned on the right, overlapping hero */}
+        <div className="absolute top-0 right-0 w-full md:w-[65%] h-full pointer-events-auto z-0">
+          <EyeParticleCanvas />
+        </div>
+
+        {/* Hero text on top of everything */}
+        <div className="relative z-10 max-w-[1400px] mx-auto w-full">
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -118,46 +124,6 @@ export default function Home() {
           </motion.p>
         </div>
       </motion.section>
-
-      {/* ── EYE — Full-bleed centerpiece like whiskerfi.trade ── */}
-      <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Eye fills the viewport */}
-        <div className="absolute inset-0">
-          <EyeParticleCanvas />
-        </div>
-        {/* Overlay text */}
-        <div className="relative z-10 text-center pointer-events-none px-6">
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4"
-          >
-            [THE_VISION]
-          </motion.p>
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-fg"
-          >
-            See Through
-            <br />
-            the Noise.
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="mt-4 text-xs font-mono text-fg-dim tracking-wider"
-          >
-            [move_cursor_to_interact]
-          </motion.p>
-        </div>
-      </section>
 
       {/* ── STATS BAR ── */}
       <section className="border-y border-border py-10 px-6">

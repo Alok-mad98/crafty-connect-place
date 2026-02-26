@@ -279,7 +279,7 @@ export default function EyeParticleCanvas() {
   }, [init]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-screen cursor-crosshair">
+    <div ref={containerRef} className="relative w-full h-full cursor-crosshair">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
     </div>
   );
