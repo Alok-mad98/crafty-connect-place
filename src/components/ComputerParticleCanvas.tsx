@@ -22,6 +22,19 @@ const REPULSION_RADIUS = 120;
 const REPULSION_FORCE = 6;
 const FONT_SIZE = 10;
 
+const CODE_LINES = [
+  '> print("Hello World")',
+  '> import ai_skills',
+  '> agent.connect(mcp)',
+  '> skill = vault.get("logic")',
+  '> agent.equip(skill)',
+  '> print("Ready.")',
+  '> status: online',
+  '> tx: 0x8f...confirmed',
+  '> nexus.deploy()',
+  '> print("AI upgraded")',
+];
+
 function generateComputerShape(cx: number, cy: number, w: number, h: number) {
   const particles: { x: number; y: number; region: Particle["region"] }[] = [];
 
@@ -117,6 +130,8 @@ export default function ComputerParticleCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const screenParticleIndicesRef = useRef<number[]>([]);
+  const typewriterRef = useRef({ lineIndex: 0, charIndex: 0, visibleLines: [] as string[], lastTick: 0 });
+  const screenBoundsRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   const init = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,6 +147,19 @@ export default function ComputerParticleCanvas() {
 
     const cx = w / 2;
     const cy = h / 2;
+
+    // Compute screen bounds for typewriter overlay
+    const monW = w * 0.38;
+    const monH = h * 0.32;
+    const monX = cx - monW / 2;
+    const monY = cy - monH * 0.7;
+    const screenPad = 12;
+    screenBoundsRef.current = {
+      x: monX + screenPad + 8,
+      y: monY + screenPad + 14,
+      w: monW - screenPad * 2 - 16,
+      h: monH - screenPad * 2 - 16,
+    };
 
     const shape = generateComputerShape(cx, cy, w, h);
     const screenIndices: number[] = [];
@@ -156,6 +184,7 @@ export default function ComputerParticleCanvas() {
     });
 
     screenParticleIndicesRef.current = screenIndices;
+    typewriterRef.current = { lineIndex: 0, charIndex: 0, visibleLines: [], lastTick: 0 };
   }, []);
 
   useEffect(() => {
@@ -244,6 +273,59 @@ export default function ComputerParticleCanvas() {
         ctx.fillText(p.char, p.x, p.y);
       }
 
+      // ── Typewriter code overlay on screen ──
+      const tw = typewriterRef.current;
+      const sb = screenBoundsRef.current;
+      const now = performance.now();
+
+      // Advance typewriter every 80ms
+      if (now - tw.lastTick > 80) {
+        tw.lastTick = now;
+        if (tw.lineIndex < CODE_LINES.length) {
+          const currentLine = CODE_LINES[tw.lineIndex];
+          tw.charIndex++;
+          if (tw.charIndex > currentLine.length) {
+            // Line complete, move to next
+            tw.visibleLines.push(currentLine);
+            tw.lineIndex++;
+            tw.charIndex = 0;
+            // Keep max 6 visible lines (scroll effect)
+            if (tw.visibleLines.length > 6) {
+              tw.visibleLines.shift();
+            }
+          }
+        } else {
+          // Loop back
+          tw.lineIndex = 0;
+          tw.charIndex = 0;
+          tw.visibleLines = [];
+        }
+      }
+
+      // Render typewriter text
+      const floatOffset = Math.sin(timeRef.current) * 4;
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "11px monospace";
+      ctx.textAlign = "left";
+
+      const lineH = 14;
+      const startY = sb.y + floatOffset;
+
+      for (let l = 0; l < tw.visibleLines.length; l++) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillText(tw.visibleLines[l], sb.x, startY + l * lineH);
+      }
+
+      // Current line being typed (with cursor blink)
+      if (tw.lineIndex < CODE_LINES.length) {
+        const partial = CODE_LINES[tw.lineIndex].substring(0, tw.charIndex);
+        const cursorChar = Math.floor(now / 500) % 2 === 0 ? "█" : " ";
+        ctx.globalAlpha = 1;
+        ctx.fillText(partial + cursorChar, sb.x, startY + tw.visibleLines.length * lineH);
+      }
+
+      ctx.textAlign = "center";
       ctx.globalAlpha = 1;
       animRef.current = requestAnimationFrame(animate);
     };
