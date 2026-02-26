@@ -1,8 +1,6 @@
-"use client";
-
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 
@@ -53,7 +51,6 @@ export default function Home() {
     <div className="relative min-h-screen">
       {/* Hero Section */}
       <section className="flex flex-col items-center justify-center min-h-[90vh] px-6 text-center">
-        {/* Glowing orb behind hero */}
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] opacity-20 pointer-events-none">
           <div
             className="w-full h-full rounded-full blur-3xl"
@@ -73,7 +70,6 @@ export default function Home() {
             visible: { transition: { staggerChildren: 0.15 } },
           }}
         >
-          {/* Badge */}
           <motion.div
             variants={{
               hidden: { opacity: 0, y: 20 },
@@ -87,7 +83,6 @@ export default function Home() {
             </span>
           </motion.div>
 
-          {/* Main heading */}
           <motion.h1
             variants={{
               hidden: { opacity: 0, y: 30 },
@@ -101,7 +96,6 @@ export default function Home() {
             <span className="text-white/60">Not For You.</span>
           </motion.h1>
 
-          {/* Subtext */}
           <motion.p
             variants={{
               hidden: { opacity: 0, y: 20 },
@@ -113,7 +107,6 @@ export default function Home() {
             A decentralized marketplace for the agents of tomorrow.
           </motion.p>
 
-          {/* CTA Buttons */}
           <motion.div
             variants={{
               hidden: { opacity: 0, y: 20 },
@@ -121,19 +114,18 @@ export default function Home() {
             }}
             className="flex flex-col sm:flex-row items-center gap-4 mt-4"
           >
-            <Link href="/vault">
+            <Link to="/vault">
               <Button variant="primary" size="lg">
                 Explore Skills
               </Button>
             </Link>
-            <Link href="/forge">
+            <Link to="/forge">
               <Button variant="ghost" size="lg">
                 Launch a Skill
               </Button>
             </Link>
           </motion.div>
 
-          {/* Stats row */}
           <motion.div
             variants={{
               hidden: { opacity: 0, y: 20 },
@@ -156,7 +148,6 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* Scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -271,7 +262,7 @@ export default function Home() {
           <p className="text-white/40 mb-8">
             Join the marketplace. Buy skills. Sell skills. Build the future of AI agents.
           </p>
-          <Link href="/vault">
+          <Link to="/vault">
             <Button variant="primary" size="lg">
               Enter The Vault
             </Button>

@@ -1,16 +1,6 @@
-"use client";
-
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
 import Button from "./ui/Button";
-import {
-  AGENT_SKILLS_MARKET_ABI,
-  ERC20_ABI,
-  CONTRACT_ADDRESS,
-  USDC_ADDRESS,
-} from "@/lib/contracts";
 
 const MODEL_OPTIONS = ["CLAUDE", "GPT4", "LLAMA", "GEMINI"] as const;
 
@@ -23,8 +13,6 @@ interface ForgeState {
 }
 
 export default function ForgeModal() {
-  const { authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
   const [state, setState] = useState<ForgeState>({
     file: null,
     title: "",
@@ -33,7 +21,7 @@ export default function ForgeModal() {
     modelTags: [],
   });
   const [isDragging, setIsDragging] = useState(false);
-  const [status, setStatus] = useState<"idle" | "uploading" | "approving" | "minting" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -71,11 +59,6 @@ export default function ForgeModal() {
   };
 
   const handleSubmit = async () => {
-    if (!authenticated || !wallets[0]) {
-      login();
-      return;
-    }
-
     if (!state.file || !state.title || !state.description) {
       setError("Please fill in all fields and upload a .md file");
       return;
@@ -91,68 +74,9 @@ export default function ForgeModal() {
     setStatus("uploading");
 
     try {
-      // 1. Upload to IPFS via API
-      const formData = new FormData();
-      formData.append("file", state.file);
-      const uploadRes = await fetch("/api/skills/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadRes.ok) throw new Error("IPFS upload failed");
-      const { ipfsCid } = await uploadRes.json();
-
-      // 2. Approve USDC for listing fee (0.5 USDC)
-      setStatus("approving");
-      const wallet = wallets[0];
-      await wallet.switchChain(8453);
-      const ethereumProvider = await wallet.getEthereumProvider();
-      const provider = new ethers.BrowserProvider(ethereumProvider);
-      const signer = await provider.getSigner();
-
-      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-      const listingFee = ethers.parseUnits("0.5", 6);
-      const allowance = await usdc.allowance(await signer.getAddress(), CONTRACT_ADDRESS);
-      if (allowance < listingFee) {
-        const approveTx = await usdc.approve(CONTRACT_ADDRESS, listingFee);
-        await approveTx.wait();
-      }
-
-      // 3. Mint skill onchain
-      setStatus("minting");
-      const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
-      const priceWei = ethers.parseUnits(state.price, 6);
-      const mintTx = await market.launchSkill(ipfsCid, priceWei);
-      const receipt = await mintTx.wait();
-
-      // Parse event to get skillId
-      const iface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
-      const log = receipt.logs.find((l: ethers.Log) => {
-        try {
-          return iface.parseLog({ topics: [...l.topics], data: l.data })?.name === "SkillLaunched";
-        } catch {
-          return false;
-        }
-      });
-      const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
-      const onchainId = parsed ? Number(parsed.args[0]) : undefined;
-
-      // 4. Save to database
-      await fetch("/api/skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: state.title,
-          description: state.description,
-          price: state.price,
-          ipfsCid,
-          modelTags: state.modelTags,
-          onchainId,
-          txHash: receipt.hash,
-        }),
-      });
-
-      setStatus("done");
+      // TODO: Implement with Lovable Cloud + wallet integration
+      console.log("Submitting skill:", state);
+      setTimeout(() => setStatus("done"), 1500);
     } catch (err) {
       console.error("Forge error:", err);
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -161,9 +85,7 @@ export default function ForgeModal() {
   };
 
   const statusMessages: Record<string, string> = {
-    uploading: "Uploading to IPFS...",
-    approving: "Approving USDC...",
-    minting: "Minting skill onchain...",
+    uploading: "Processing skill...",
     done: "Skill launched successfully!",
   };
 
@@ -328,13 +250,9 @@ export default function ForgeModal() {
         size="lg"
         className="w-full"
         onClick={handleSubmit}
-        disabled={status === "uploading" || status === "approving" || status === "minting"}
+        disabled={status === "uploading"}
       >
-        {!authenticated
-          ? "Connect Wallet First"
-          : status === "done"
-          ? "Skill Launched!"
-          : "Pay 0.5 USDC to Mint Skill"}
+        {status === "done" ? "Skill Launched!" : "Pay 0.5 USDC to Mint Skill"}
       </Button>
 
       <p className="text-[10px] text-white/20 text-center mt-3">

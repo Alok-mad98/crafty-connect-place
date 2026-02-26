@@ -1,13 +1,10 @@
-"use client";
-
 import { motion } from "framer-motion";
 import ForgeModal from "@/components/ForgeModal";
 
-export default function ForgePage() {
+export default function Forge() {
   return (
     <div className="min-h-screen px-6 py-12 flex flex-col items-center">
       <div className="max-w-7xl w-full">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -22,7 +19,6 @@ export default function ForgePage() {
           </p>
         </motion.div>
 
-        {/* Forge Modal */}
         <ForgeModal />
       </div>
     </div>
