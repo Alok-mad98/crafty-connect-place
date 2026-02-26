@@ -15,16 +15,16 @@ interface Particle {
   ease: number;
   char: string;
   opacity: number;
-  group: "white" | "pupil" | "outline";
+  group: "white" | "pupil" | "outline" | "iris";
 }
 
 type BlinkState = "open" | "closing" | "closed" | "opening";
 
 const CHARS = "0123456789".split("");
-const PARTICLE_COUNT = 6000;
+const PARTICLE_COUNT = 10000;
 const REPULSION_RADIUS = 120;
 const REPULSION_FORCE = 6;
-const FONT_SIZE = 11;
+const FONT_SIZE = 12;
 
 function generateEyeShape(
   cx: number,
@@ -33,31 +33,29 @@ function generateEyeShape(
   h: number,
   count: number
 ) {
-  const particles: { x: number; y: number; group: "white" | "pupil" | "outline" }[] = [];
+  const particles: { x: number; y: number; group: Particle["group"] }[] = [];
 
-  // Parametric eye shape: intersection of two elliptic arcs
   const eyeW = w * 0.48;
-  const eyeH = h * 0.32;
-  const pupilR = eyeW * 0.22;
-  const irisR = eyeW * 0.35;
+  const eyeH = h * 0.34;
+  const pupilR = eyeW * 0.18;
+  const irisR = eyeW * 0.32;
 
   for (let i = 0; i < count; i++) {
     const rx = (Math.random() - 0.5) * 2 * eyeW;
     const ry = (Math.random() - 0.5) * 2 * eyeH;
 
-    // Eye boundary: almond shape using two parabolas
     const normX = Math.abs(rx / eyeW);
     const topBound = eyeH * (1 - normX * normX);
     const botBound = -eyeH * (1 - normX * normX) * 0.85;
 
     if (ry < topBound && ry > botBound) {
       const dist = Math.sqrt(rx * rx + ry * ry);
-      let group: "white" | "pupil" | "outline" = "white";
+      let group: Particle["group"] = "white";
 
       if (dist < pupilR) {
         group = "pupil";
       } else if (dist < irisR) {
-        group = Math.random() > 0.3 ? "pupil" : "white";
+        group = Math.random() > 0.4 ? "iris" : "white";
       }
 
       // Outline particles along the edge
@@ -65,7 +63,7 @@ function generateEyeShape(
         Math.abs(ry - topBound),
         Math.abs(ry - botBound)
       );
-      if (edgeDist < 6) {
+      if (edgeDist < 8) {
         group = "outline";
       }
 
@@ -88,8 +86,7 @@ function generateClosedEyeShape(
   for (let i = 0; i < count; i++) {
     const rx = (Math.random() - 0.5) * 2 * lineW;
     const normX = rx / lineW;
-    // Slight curve for closed eye
-    const ry = Math.sin(normX * Math.PI) * 8 + (Math.random() - 0.5) * 6;
+    const ry = Math.sin(normX * Math.PI) * 10 + (Math.random() - 0.5) * 8;
     coords.push({ x: cx + rx, y: cy + ry });
   }
   return coords;
@@ -105,7 +102,7 @@ export default function EyeParticleCanvas() {
   const timeRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const closedMapRef = useRef<{ x: number; y: number }[]>([]);
-  const openMapRef = useRef<{ x: number; y: number; group: "white" | "pupil" | "outline" }[]>([]);
+  const openMapRef = useRef<{ x: number; y: number; group: Particle["group"] }[]>([]);
   const sizeRef = useRef({ w: 0, h: 0 });
 
   const init = useCallback(() => {
@@ -129,7 +126,7 @@ export default function EyeParticleCanvas() {
     openMapRef.current = openMap;
     closedMapRef.current = closedMap;
 
-    particlesRef.current = openMap.map((pt, i) => ({
+    particlesRef.current = openMap.map((pt) => ({
       x: cx + (Math.random() - 0.5) * w,
       y: cy + (Math.random() - 0.5) * h,
       baseX: pt.x,
@@ -138,10 +135,14 @@ export default function EyeParticleCanvas() {
       targetY: pt.y,
       vx: 0,
       vy: 0,
-      friction: 0.82 + Math.random() * 0.06,
-      ease: 0.06 + Math.random() * 0.04,
+      friction: 0.85 + Math.random() * 0.04,
+      ease: 0.08 + Math.random() * 0.03,
       char: CHARS[Math.floor(Math.random() * CHARS.length)],
-      opacity: pt.group === "pupil" ? 0.9 : pt.group === "outline" ? 0.7 : 0.35 + Math.random() * 0.25,
+      opacity:
+        pt.group === "pupil" ? 0.95
+        : pt.group === "iris" ? 0.75
+        : pt.group === "outline" ? 0.8
+        : 0.3 + Math.random() * 0.25,
       group: pt.group,
     }));
   }, []);
@@ -197,7 +198,7 @@ export default function EyeParticleCanvas() {
       ctx.clearRect(0, 0, w, h);
       timeRef.current += 0.02;
 
-      const floatY = Math.sin(timeRef.current) * 6;
+      const floatY = Math.sin(timeRef.current) * 8;
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;
 
@@ -208,8 +209,8 @@ export default function EyeParticleCanvas() {
       // Pupil tracking offset
       const eyeAngle = Math.atan2(my - cy, mx - cx);
       const pupilDist = Math.min(Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2), 200);
-      const pupilOffX = mx > -9000 ? Math.cos(eyeAngle) * Math.min(pupilDist * 0.08, 18) : 0;
-      const pupilOffY = mx > -9000 ? Math.sin(eyeAngle) * Math.min(pupilDist * 0.08, 12) : 0;
+      const pupilOffX = mx > -9000 ? Math.cos(eyeAngle) * Math.min(pupilDist * 0.1, 20) : 0;
+      const pupilOffY = mx > -9000 ? Math.sin(eyeAngle) * Math.min(pupilDist * 0.1, 12) : 0;
 
       const particles = particlesRef.current;
       const openMap = openMapRef.current;
@@ -225,7 +226,7 @@ export default function EyeParticleCanvas() {
         } else if (openMap[i]) {
           let tx = openMap[i].x;
           let ty = openMap[i].y + floatY;
-          if (p.group === "pupil") {
+          if (p.group === "pupil" || p.group === "iris") {
             tx += pupilOffX;
             ty += pupilOffY;
           }
