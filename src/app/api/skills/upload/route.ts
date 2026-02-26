@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PinataSDK } from "pinata";
 
+export const runtime = "nodejs";
+
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+
+function isMarkdownFile(file: File): boolean {
+  const fileName = file.name.toLowerCase();
+  const mimeType = file.type.toLowerCase();
+  return fileName.endsWith(".md") || mimeType.includes("markdown");
+}
+
 // POST /api/skills/upload — Upload .md file to IPFS
 export async function POST(req: NextRequest) {
   try {
@@ -21,13 +31,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!file.name.endsWith(".md")) {
-      return NextResponse.json({ error: "Only .md files accepted" }, { status: 400 });
+    if (!isMarkdownFile(file)) {
+      return NextResponse.json({ error: "Only Markdown (.md) files are accepted" }, { status: 400 });
     }
 
-    // Max 1MB
-    if (file.size > 1024 * 1024) {
-      return NextResponse.json({ error: "File too large (max 1MB)" }, { status: 400 });
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json({ error: "File too large (max 20MB)" }, { status: 400 });
     }
 
     console.log("Uploading to IPFS:", { name: file.name, size: file.size, hasJwt: !!jwt });
@@ -40,7 +49,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("IPFS upload failed:", error);
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const details = error instanceof Error ? error.message : "Upload failed";
+    return NextResponse.json({ error: "IPFS upload failed", details }, { status: 500 });
   }
 }
+
