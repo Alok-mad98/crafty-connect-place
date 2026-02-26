@@ -22,17 +22,19 @@ const REPULSION_RADIUS = 120;
 const REPULSION_FORCE = 6;
 const FONT_SIZE = 10;
 
+// Agentic code sequence → print Hello World → output Hello World
 const CODE_LINES = [
-  '> print("Hello World")',
-  '> import ai_skills',
+  '> import agent_core',
+  '> from skills import mcp',
+  '> agent = Agent("nexus")',
   '> agent.connect(mcp)',
-  '> skill = vault.get("logic")',
+  '> skill = vault.load("logic")',
   '> agent.equip(skill)',
-  '> print("Ready.")',
-  '> status: online',
-  '> tx: 0x8f...confirmed',
-  '> nexus.deploy()',
-  '> print("AI upgraded")',
+  '> agent.status()',
+  '  [online] ready',
+  '> print("Hello World")',
+  '  Hello World',
+  '> _',
 ];
 
 function generateComputerShape(cx: number, cy: number, w: number, h: number) {
@@ -71,7 +73,7 @@ function generateComputerShape(cx: number, cy: number, w: number, h: number) {
         x > monX + screenPad && x < monX + monW - screenPad &&
         y > monY + screenPad && y < monY + monH - screenPad;
 
-      if (isEdge || (isScreen && Math.random() < 0.15)) {
+      if (isEdge || (isScreen && Math.random() < 0.12)) {
         particles.push({
           x: x + (Math.random() - 0.5) * 2,
           y: y + (Math.random() - 0.5) * 2,
@@ -81,10 +83,10 @@ function generateComputerShape(cx: number, cy: number, w: number, h: number) {
     }
   }
 
-  // Screen content particles (denser)
-  for (let x = monX + screenPad + 4; x < monX + monW - screenPad - 4; x += 8) {
-    for (let y = monY + screenPad + 4; y < monY + monH - screenPad - 4; y += 10) {
-      if (Math.random() < 0.6) {
+  // Screen content particles (sparse so typewriter text is readable)
+  for (let x = monX + screenPad + 4; x < monX + monW - screenPad - 4; x += 10) {
+    for (let y = monY + screenPad + 4; y < monY + monH - screenPad - 4; y += 12) {
+      if (Math.random() < 0.4) {
         particles.push({ x, y, region: "screen" });
       }
     }
@@ -130,7 +132,7 @@ export default function ComputerParticleCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const screenParticleIndicesRef = useRef<number[]>([]);
-  const typewriterRef = useRef({ lineIndex: 0, charIndex: 0, visibleLines: [] as string[], lastTick: 0 });
+  const typewriterRef = useRef({ lineIndex: 0, charIndex: 0, visibleLines: [] as string[], lastTick: 0, pause: 0 });
   const screenBoundsRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   const init = useCallback(() => {
@@ -148,7 +150,6 @@ export default function ComputerParticleCanvas() {
     const cx = w / 2;
     const cy = h / 2;
 
-    // Compute screen bounds for typewriter overlay
     const monW = w * 0.38;
     const monH = h * 0.32;
     const monX = cx - monW / 2;
@@ -178,13 +179,13 @@ export default function ComputerParticleCanvas() {
         char: pt.region === "screen"
           ? CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
           : CHARS[Math.floor(Math.random() * CHARS.length)],
-        opacity: pt.region === "screen" ? 0.6 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3,
+        opacity: pt.region === "screen" ? 0.5 + Math.random() * 0.2 : 0.3 + Math.random() * 0.3,
         region: pt.region,
       };
     });
 
     screenParticleIndicesRef.current = screenIndices;
-    typewriterRef.current = { lineIndex: 0, charIndex: 0, visibleLines: [], lastTick: 0 };
+    typewriterRef.current = { lineIndex: 0, charIndex: 0, visibleLines: [], lastTick: 0, pause: 0 };
   }, []);
 
   useEffect(() => {
@@ -213,19 +214,18 @@ export default function ComputerParticleCanvas() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Code rain: periodically change screen particle chars
+    // Code rain for screen particles
     const codeInterval = setInterval(() => {
       const particles = particlesRef.current;
       const indices = screenParticleIndicesRef.current;
-      // Cycle ~20% of screen particles
-      const changeCount = Math.floor(indices.length * 0.2);
+      const changeCount = Math.floor(indices.length * 0.15);
       for (let i = 0; i < changeCount; i++) {
         const idx = indices[Math.floor(Math.random() * indices.length)];
         if (particles[idx]) {
           particles[idx].char = CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
         }
       }
-    }, 200);
+    }, 250);
 
     const animate = () => {
       const { w, h } = sizeRef.current;
@@ -240,7 +240,6 @@ export default function ComputerParticleCanvas() {
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-
         const ty = p.targetY + floatY;
 
         // Cursor repulsion
@@ -273,57 +272,50 @@ export default function ComputerParticleCanvas() {
         ctx.fillText(p.char, p.x, p.y);
       }
 
-      // ── Typewriter code overlay on screen ──
+      // ── Typewriter code overlay ──
       const tw = typewriterRef.current;
       const sb = screenBoundsRef.current;
       const now = performance.now();
 
-      // Advance typewriter every 80ms
-      if (now - tw.lastTick > 80) {
+      // Handle pause between loops
+      if (tw.pause > 0) {
+        if (now < tw.pause) {
+          // Still pausing, render current lines
+          renderTypewriter(ctx, tw, sb, now);
+          ctx.globalAlpha = 1;
+          animRef.current = requestAnimationFrame(animate);
+          return;
+        }
+        tw.pause = 0;
+        tw.lineIndex = 0;
+        tw.charIndex = 0;
+        tw.visibleLines = [];
+      }
+
+      // Advance typewriter
+      const isOutput = tw.lineIndex < CODE_LINES.length && CODE_LINES[tw.lineIndex].startsWith("  ");
+      const speed = isOutput ? 40 : 70; // Output lines appear faster
+
+      if (now - tw.lastTick > speed) {
         tw.lastTick = now;
         if (tw.lineIndex < CODE_LINES.length) {
           const currentLine = CODE_LINES[tw.lineIndex];
           tw.charIndex++;
           if (tw.charIndex > currentLine.length) {
-            // Line complete, move to next
             tw.visibleLines.push(currentLine);
             tw.lineIndex++;
             tw.charIndex = 0;
-            // Keep max 6 visible lines (scroll effect)
-            if (tw.visibleLines.length > 6) {
+            if (tw.visibleLines.length > 7) {
               tw.visibleLines.shift();
             }
           }
         } else {
-          // Loop back
-          tw.lineIndex = 0;
-          tw.charIndex = 0;
-          tw.visibleLines = [];
+          // Pause 2s then loop
+          tw.pause = now + 2000;
         }
       }
 
-      // Render typewriter text
-      const floatOffset = Math.sin(timeRef.current) * 4;
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "11px monospace";
-      ctx.textAlign = "left";
-
-      const lineH = 14;
-      const startY = sb.y + floatOffset;
-
-      for (let l = 0; l < tw.visibleLines.length; l++) {
-        ctx.globalAlpha = 0.7;
-        ctx.fillText(tw.visibleLines[l], sb.x, startY + l * lineH);
-      }
-
-      // Current line being typed (with cursor blink)
-      if (tw.lineIndex < CODE_LINES.length) {
-        const partial = CODE_LINES[tw.lineIndex].substring(0, tw.charIndex);
-        const cursorChar = Math.floor(now / 500) % 2 === 0 ? "█" : " ";
-        ctx.globalAlpha = 1;
-        ctx.fillText(partial + cursorChar, sb.x, startY + tw.visibleLines.length * lineH);
-      }
+      renderTypewriter(ctx, tw, sb, now);
 
       ctx.textAlign = "center";
       ctx.globalAlpha = 1;
@@ -346,4 +338,33 @@ export default function ComputerParticleCanvas() {
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
     </div>
   );
+}
+
+function renderTypewriter(
+  ctx: CanvasRenderingContext2D,
+  tw: { lineIndex: number; charIndex: number; visibleLines: string[] },
+  sb: { x: number; y: number },
+  now: number
+) {
+  ctx.font = "9px monospace";
+  ctx.textAlign = "left";
+
+  const lineH = 12;
+
+  for (let l = 0; l < tw.visibleLines.length; l++) {
+    const line = tw.visibleLines[l];
+    const isOutput = line.startsWith("  ");
+    ctx.globalAlpha = isOutput ? 0.9 : 0.65;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(line, sb.x, sb.y + l * lineH);
+  }
+
+  // Current line being typed
+  if (tw.lineIndex < CODE_LINES.length) {
+    const partial = CODE_LINES[tw.lineIndex].substring(0, tw.charIndex);
+    const cursorChar = Math.floor(now / 500) % 2 === 0 ? "█" : " ";
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(partial + cursorChar, sb.x, sb.y + tw.visibleLines.length * lineH);
+  }
 }
