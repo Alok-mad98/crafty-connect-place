@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 
 const EyeParticleCanvas = dynamic(() => import("@/components/EyeParticleCanvas"), { ssr: false });
 const ComputerParticleCanvas = dynamic(() => import("@/components/ComputerParticleCanvas"), { ssr: false });
+const OpenClawParticleCanvas = dynamic(() => import("@/components/OpenClawParticleCanvas"), { ssr: false });
 
 const stats = [
   { label: "skills", value: "100+", sub: "Listed Skills" },
@@ -173,6 +174,35 @@ export default function Home() {
             Built by Code.
             <br />
             Powered by Numbers.
+          </motion.h2>
+        </div>
+      </section>
+
+      {/* ── OPENCLAW LOGO — Full-bleed particle animation ── */}
+      <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 pointer-events-auto">
+          <OpenClawParticleCanvas />
+        </div>
+        <div className="relative z-10 text-center pointer-events-none px-6">
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4"
+          >
+            [OPEN_CLAW]
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-fg"
+          >
+            Security First.
+            <br />
+            Always Watching.
           </motion.h2>
         </div>
       </section>
