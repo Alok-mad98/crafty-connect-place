@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --yes)",
       "Bash(npm pkg set name=\"ai-marketplace\")",
       "Bash(npm install framer-motion @privy-io/react-auth @privy-io/server-auth ethers@6 @prisma/client pinata groq-sdk viem wagmi @tanstack/react-query)",
       "Bash(npm install -D prisma hardhat @nomicfoundation/hardhat-toolbox @types/node)",
@@ -11,7 +10,6 @@
       "Bash(npm install @prisma/adapter-pg dotenv)",
       "Bash(npm install @prisma/adapter-pg dotenv --legacy-peer-deps)",
       "Bash(ls \"/c/Users/alokp/Downloads/Ai Marketplace/prisma/generated/prisma/client/index\"*)",
-      "Bash(npx next build)",
       "mcp__Claude_Preview__preview_start",
       "Bash(node -e \":*)",
       "Bash(node contracts/check-wallet.mjs)",
