@@ -99,8 +99,14 @@ export default function ForgeModal() {
         body: formData,
       });
 
-      if (!uploadRes.ok) throw new Error("IPFS upload failed");
-      const { ipfsCid } = await uploadRes.json();
+      const uploadPayload: { ipfsCid?: string; error?: string; details?: string } | null = await uploadRes.json().catch(() => null);
+      if (!uploadRes.ok) {
+        throw new Error(uploadPayload?.error || uploadPayload?.details || `IPFS upload failed (${uploadRes.status})`);
+      }
+      if (!uploadPayload?.ipfsCid) {
+        throw new Error("IPFS upload returned no CID");
+      }
+      const ipfsCid = uploadPayload.ipfsCid;
 
       setStatus("approving");
       const wallet = wallets[0];
