@@ -33,12 +33,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} ${geistMono.variable} font-sans antialiased bg-navy text-white min-h-screen overflow-x-hidden`}
+        className={`${inter.variable} ${geistMono.variable} font-sans antialiased bg-bg text-fg min-h-screen overflow-x-hidden`}
       >
         <Providers>
           <CinematicBackground />
           <Navbar />
-          <main className="relative z-10 pt-16">
+          <main className="relative z-10 pt-14">
             {children}
           </main>
           <MasterAIChat />

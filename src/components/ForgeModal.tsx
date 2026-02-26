@@ -91,7 +91,6 @@ export default function ForgeModal() {
     setStatus("uploading");
 
     try {
-      // 1. Upload to IPFS via API
       const formData = new FormData();
       formData.append("file", state.file);
       const uploadRes = await fetch("/api/skills/upload", {
@@ -102,7 +101,6 @@ export default function ForgeModal() {
       if (!uploadRes.ok) throw new Error("IPFS upload failed");
       const { ipfsCid } = await uploadRes.json();
 
-      // 2. Approve USDC for listing fee (0.5 USDC)
       setStatus("approving");
       const wallet = wallets[0];
       await wallet.switchChain(8453);
@@ -118,14 +116,12 @@ export default function ForgeModal() {
         await approveTx.wait();
       }
 
-      // 3. Mint skill onchain
       setStatus("minting");
       const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
       const priceWei = ethers.parseUnits(state.price, 6);
       const mintTx = await market.launchSkill(ipfsCid, priceWei);
       const receipt = await mintTx.wait();
 
-      // Parse event to get skillId
       const iface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
       const log = receipt.logs.find((l: ethers.Log) => {
         try {
@@ -137,7 +133,6 @@ export default function ForgeModal() {
       const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
       const onchainId = parsed ? Number(parsed.args[0]) : undefined;
 
-      // 4. Save to database
       await fetch("/api/skills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,13 +164,16 @@ export default function ForgeModal() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="w-full max-w-xl mx-auto bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/30 p-8"
+      className="w-full bg-bg-card border border-border p-8"
     >
-      <h2 className="text-2xl font-bold text-white mb-2">Launch a Skill</h2>
-      <p className="text-sm text-white/40 mb-8">
+      <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-2">
+        [launch_skill]
+      </p>
+      <h2 className="text-xl font-medium text-fg mb-1">Launch a Skill</h2>
+      <p className="text-sm text-fg-muted mb-8">
         Upload your .md skill file, set a price, and mint it onchain.
       </p>
 
@@ -185,9 +183,9 @@ export default function ForgeModal() {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative border-2 border-dashed rounded-xl p-8 text-center mb-6 transition-all duration-200 cursor-pointer
-          ${isDragging ? "border-amber-warm/50 bg-amber-warm/[0.04]" : "border-white/[0.15] hover:border-white/[0.25]"}
-          ${state.file ? "border-emerald-400/30 bg-emerald-400/[0.02]" : ""}
+          relative border border-dashed p-8 text-center mb-6 transition-all duration-200 cursor-pointer
+          ${isDragging ? "border-accent bg-accent-muted" : "border-border hover:border-border-hover"}
+          ${state.file ? "border-success/30 bg-success/5" : ""}
         `}
         onClick={() => document.getElementById("file-input")?.click()}
       >
@@ -200,71 +198,65 @@ export default function ForgeModal() {
         />
         {state.file ? (
           <div className="flex items-center justify-center gap-3">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-mono text-white/70">{state.file.name}</span>
+            <span className="text-xs font-mono text-fg-muted">{state.file.name}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setState((s) => ({ ...s, file: null }));
               }}
-              className="text-white/30 hover:text-white/60 text-xs"
+              className="text-fg-dim hover:text-fg-muted text-[10px] font-mono"
             >
-              Remove
+              [remove]
             </button>
           </div>
         ) : (
           <>
-            <svg className="w-10 h-10 mx-auto mb-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <p className="text-sm text-white/40">
-              Drag & drop your <span className="font-mono text-white/60">.md</span> skill file here
+            <p className="text-sm text-fg-muted">
+              Drag & drop your <span className="font-mono text-fg">.md</span> skill file
             </p>
-            <p className="text-xs text-white/20 mt-1">or click to browse</p>
+            <p className="text-[10px] text-fg-dim mt-1 font-mono">or click to browse</p>
           </>
         )}
       </div>
 
       {/* Title */}
       <div className="mb-4">
-        <label className="text-xs text-white/40 mb-1.5 block">Skill Title</label>
+        <label className="text-[10px] font-mono text-fg-dim mb-1.5 block tracking-wider">SKILL TITLE</label>
         <input
           type="text"
           value={state.title}
           onChange={(e) => setState((s) => ({ ...s, title: e.target.value }))}
           placeholder="e.g. Advanced Code Review Agent"
-          className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white/[0.2] transition-colors"
+          className="w-full bg-transparent border border-border px-4 py-3 text-sm text-fg placeholder:text-fg-dim focus:outline-none focus:border-border-hover transition-colors font-mono"
         />
       </div>
 
       {/* Description */}
       <div className="mb-4">
-        <label className="text-xs text-white/40 mb-1.5 block">Description</label>
+        <label className="text-[10px] font-mono text-fg-dim mb-1.5 block tracking-wider">DESCRIPTION</label>
         <textarea
           value={state.description}
           onChange={(e) => setState((s) => ({ ...s, description: e.target.value }))}
-          placeholder="What does this skill do? What models is it optimized for?"
+          placeholder="What does this skill do?"
           rows={3}
-          className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white/[0.2] transition-colors resize-none"
+          className="w-full bg-transparent border border-border px-4 py-3 text-sm text-fg placeholder:text-fg-dim focus:outline-none focus:border-border-hover transition-colors resize-none font-mono"
         />
       </div>
 
       {/* Model Tags */}
       <div className="mb-4">
-        <label className="text-xs text-white/40 mb-1.5 block">Compatible Models</label>
+        <label className="text-[10px] font-mono text-fg-dim mb-1.5 block tracking-wider">COMPATIBLE MODELS</label>
         <div className="flex flex-wrap gap-2">
           {MODEL_OPTIONS.map((tag) => (
             <button
               key={tag}
               onClick={() => toggleTag(tag)}
               className={`
-                px-3 py-1.5 text-xs font-mono rounded-lg border transition-all duration-200
+                px-3 py-1.5 text-[10px] font-mono border transition-all duration-200
                 ${
                   state.modelTags.includes(tag)
-                    ? "bg-white/[0.1] border-white/[0.2] text-white"
-                    : "bg-transparent border-white/[0.08] text-white/40 hover:text-white/60 hover:border-white/[0.12]"
+                    ? "bg-fg-ghost border-border-hover text-fg"
+                    : "bg-transparent border-border text-fg-dim hover:text-fg-muted hover:border-border-hover"
                 }
               `}
             >
@@ -276,7 +268,7 @@ export default function ForgeModal() {
 
       {/* Price */}
       <div className="mb-6">
-        <label className="text-xs text-white/40 mb-1.5 block">Price (USDC)</label>
+        <label className="text-[10px] font-mono text-fg-dim mb-1.5 block tracking-wider">PRICE (USDC)</label>
         <div className="relative">
           <input
             type="number"
@@ -284,13 +276,13 @@ export default function ForgeModal() {
             step="0.01"
             value={state.price}
             onChange={(e) => setState((s) => ({ ...s, price: e.target.value }))}
-            className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:border-white/[0.2] transition-colors"
+            className="w-full bg-transparent border border-border px-4 py-3 text-sm text-fg font-mono focus:outline-none focus:border-border-hover transition-colors"
           />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-white/30">
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-fg-dim">
             USDC
           </span>
         </div>
-        <p className="text-[10px] text-white/20 mt-1">Minimum 2.00 USDC</p>
+        <p className="text-[10px] text-fg-dim mt-1 font-mono">Minimum 2.00 USDC</p>
       </div>
 
       {/* Error */}
@@ -300,7 +292,7 @@ export default function ForgeModal() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="mb-4 p-3 rounded-lg bg-red-500/[0.1] border border-red-500/[0.2] text-xs text-red-400"
+            className="mb-4 p-3 border border-error/20 bg-error/5 text-xs text-error font-mono"
           >
             {error}
           </motion.div>
@@ -309,20 +301,15 @@ export default function ForgeModal() {
 
       {/* Status */}
       {status !== "idle" && status !== "error" && (
-        <div className="mb-4 p-3 rounded-lg bg-amber-warm/[0.06] border border-amber-warm/[0.1] text-xs text-amber-warm/80 flex items-center gap-2">
+        <div className="mb-4 p-3 border border-accent-muted bg-accent-muted/30 text-xs text-accent font-mono flex items-center gap-2">
           {status !== "done" && (
-            <div className="w-3 h-3 border-2 border-amber-warm/40 border-t-amber-warm rounded-full animate-spin" />
-          )}
-          {status === "done" && (
-            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <div className="w-3 h-3 border border-accent/40 border-t-accent rounded-full animate-spin" />
           )}
           {statusMessages[status]}
         </div>
       )}
 
-      {/* Submit Button */}
+      {/* Submit */}
       <Button
         variant="primary"
         size="lg"
@@ -331,14 +318,14 @@ export default function ForgeModal() {
         disabled={status === "uploading" || status === "approving" || status === "minting"}
       >
         {!authenticated
-          ? "Connect Wallet First"
+          ? "CONNECT WALLET FIRST"
           : status === "done"
-          ? "Skill Launched!"
-          : "Pay 0.5 USDC to Mint Skill"}
+          ? "SKILL LAUNCHED!"
+          : "PAY 0.5 USDC TO MINT →"}
       </Button>
 
-      <p className="text-[10px] text-white/20 text-center mt-3">
-        0.5 USDC listing fee &middot; 95% of sales go to you &middot; Verified by Master AI
+      <p className="text-[10px] text-fg-dim text-center mt-4 font-mono">
+        0.5 USDC listing fee · 95% of sales go to you · Verified by Master AI
       </p>
     </motion.div>
   );

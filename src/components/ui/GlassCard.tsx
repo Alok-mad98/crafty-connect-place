@@ -17,12 +17,10 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-        whileHover={hover ? { scale: 1.01, borderColor: "rgba(255,255,255,0.15)" } : undefined}
         className={`
-          bg-white/[0.04] backdrop-blur-xl
-          border border-white/[0.08]
-          rounded-2xl shadow-2xl shadow-black/20
+          bg-bg-card border border-border
           transition-colors duration-300
+          ${hover ? "hover:bg-bg-elevated hover:border-border-hover" : ""}
           ${className}
         `}
         {...props}

@@ -1,24 +1,22 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
 
-interface Star {
+const CHARS = "01アイウエオカキクケコ{}[]<>/:;NEXUS".split("");
+
+interface Particle {
   x: number;
   y: number;
-  size: number;
   speed: number;
+  char: string;
   opacity: number;
+  size: number;
 }
 
 export default function CinematicBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const starsRef = useRef<Star[]>([]);
   const animationRef = useRef<number>(0);
-  const { scrollY } = useScroll();
-
-  const skyY = useTransform(scrollY, [0, 1000], [0, -150]);
-  const fieldY = useTransform(scrollY, [0, 1000], [0, -50]);
+  const particlesRef = useRef<Particle[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,39 +31,30 @@ export default function CinematicBackground() {
     resize();
     window.addEventListener("resize", resize);
 
-    // Initialize stars
-    starsRef.current = Array.from({ length: 250 }, () => ({
+    // Initialize particles
+    const count = Math.floor(window.innerWidth / 18);
+    particlesRef.current = Array.from({ length: count }, () => ({
       x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height * 0.65,
-      size: Math.random() * 2.5 + 0.5,
-      speed: Math.random() * 0.5 + 0.2,
-      opacity: Math.random(),
+      y: Math.random() * canvas.height * 2 - canvas.height,
+      speed: Math.random() * 0.6 + 0.15,
+      char: CHARS[Math.floor(Math.random() * CHARS.length)],
+      opacity: Math.random() * 0.12 + 0.02,
+      size: Math.random() * 4 + 10,
     }));
 
-    const animate = (time: number) => {
+    const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "12px 'Roboto Mono', monospace";
 
-      starsRef.current.forEach((star) => {
-        const twinkle = Math.sin(time * 0.001 * star.speed + star.x) * 0.5 + 0.5;
-        const alpha = star.opacity * twinkle;
+      particlesRef.current.forEach((p) => {
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`;
+        ctx.fillText(p.char, p.x, p.y);
 
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.fill();
-
-        // Glow effect for larger stars
-        if (star.size > 1.5) {
-          ctx.beginPath();
-          ctx.arc(star.x, star.y, star.size * 3, 0, Math.PI * 2);
-          const gradient = ctx.createRadialGradient(
-            star.x, star.y, 0,
-            star.x, star.y, star.size * 3
-          );
-          gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.3})`);
-          gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-          ctx.fillStyle = gradient;
-          ctx.fill();
+        p.y += p.speed;
+        if (p.y > canvas.height) {
+          p.y = -20;
+          p.x = Math.random() * canvas.width;
+          p.char = CHARS[Math.floor(Math.random() * CHARS.length)];
         }
       });
 
@@ -81,96 +70,31 @@ export default function CinematicBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden">
-      {/* Sky gradient layer */}
-      <motion.div
-        style={{ y: skyY }}
+    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+      {/* Base gradient */}
+      <div
         className="absolute inset-0"
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(ellipse 120% 60% at 50% 100%, rgba(196, 149, 106, 0.15) 0%, transparent 70%),
-              radial-gradient(ellipse 80% 50% at 30% 80%, rgba(196, 149, 106, 0.08) 0%, transparent 60%),
-              linear-gradient(180deg,
-                #050810 0%,
-                #0a0e1a 15%,
-                #0d1225 35%,
-                #111a30 55%,
-                #1a1f2e 70%,
-                #2a2520 82%,
-                #3d3225 88%,
-                #4a3d2a 92%,
-                #3d3225 96%,
-                #1a1510 100%
-              )
-            `,
-          }}
-        />
-      </motion.div>
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 50% at 50% 100%, hsl(35 20% 8% / 0.4) 0%, transparent 70%),
+            radial-gradient(ellipse 60% 40% at 20% 80%, hsl(35 15% 6% / 0.2) 0%, transparent 60%),
+            hsl(0 0% 4%)
+          `,
+        }}
+      />
 
-      {/* Horizon warm glow */}
-      <motion.div
-        style={{ y: fieldY }}
-        className="absolute inset-0"
-      >
-        <div
-          className="absolute bottom-0 left-0 right-0 h-[45%]"
-          style={{
-            background: `
-              linear-gradient(180deg,
-                transparent 0%,
-                rgba(196, 149, 106, 0.06) 30%,
-                rgba(196, 149, 106, 0.12) 50%,
-                rgba(140, 100, 60, 0.08) 70%,
-                rgba(30, 25, 15, 0.9) 85%,
-                rgba(15, 12, 8, 0.95) 100%
-              )
-            `,
-          }}
-        />
-        {/* Subtle grass-field texture suggestion */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-[20%] opacity-30"
-          style={{
-            background: `
-              repeating-linear-gradient(
-                85deg,
-                transparent,
-                transparent 2px,
-                rgba(100, 120, 50, 0.05) 2px,
-                rgba(100, 120, 50, 0.05) 4px
-              )
-            `,
-          }}
-        />
-      </motion.div>
-
-      {/* Star canvas */}
+      {/* Particle canvas */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{ mixBlendMode: "screen" }}
       />
 
-      {/* Atmospheric haze */}
+      {/* Subtle vignette */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0"
         style={{
-          background: `
-            radial-gradient(ellipse 100% 40% at 50% 75%, rgba(196, 149, 106, 0.04) 0%, transparent 70%),
-            radial-gradient(circle at 20% 50%, rgba(196, 149, 106, 0.02) 0%, transparent 50%),
-            radial-gradient(circle at 80% 40%, rgba(150, 130, 100, 0.02) 0%, transparent 50%)
-          `,
-        }}
-      />
-
-      {/* Vignette */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 0%, rgba(5, 8, 16, 0.4) 100%)",
+          background: "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 0%, hsl(0 0% 3% / 0.5) 100%)",
         }}
       />
     </div>

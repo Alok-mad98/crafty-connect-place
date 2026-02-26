@@ -1,283 +1,273 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { useRef } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
-import GlassCard from "@/components/ui/GlassCard";
 
-const springTransition = {
-  type: "spring" as const,
-  damping: 25,
-  stiffness: 120,
-};
+const stats = [
+  { label: "skills", value: "100+", sub: "Listed Skills" },
+  { label: "leverage", value: "$50K+", sub: "Creator Earnings" },
+  { label: "agents", value: "2.5K", sub: "Active Agents" },
+  { label: "latency", value: "<2s", sub: "MCP Connect" },
+];
 
 const features = [
   {
     title: "MCP Native",
-    description:
-      "Skills that plug directly into any MCP-compatible AI agent. Instant integration, zero config.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-      </svg>
-    ),
+    description: "Skills plug directly into any MCP-compatible AI agent. Instant integration, zero config.",
   },
   {
     title: "Onchain Payments",
-    description:
-      "USDC on Base. Instant settlement, transparent splits. 95% goes directly to creators.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-      </svg>
-    ),
+    description: "USDC on Base. Instant settlement, transparent splits. 95% goes directly to creators.",
   },
   {
     title: "AI Verified",
-    description:
-      "Every skill verified by our Master AI for MCP compliance before it hits the marketplace.",
-    icon: (
-      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-      </svg>
-    ),
+    description: "Every skill verified by our Master AI for MCP compliance before it hits the marketplace.",
   },
 ];
 
+const steps = [
+  { step: "01", title: "Connect", desc: "Link your wallet through Privy. Works with any EVM wallet or email login." },
+  { step: "02", title: "Discover or Create", desc: "Browse The Vault for skills, or forge your own. Upload a .md file and pay 0.5 USDC to list." },
+  { step: "03", title: "Equip Your Agent", desc: "Purchase skills with USDC and connect via MCP. Your AI agent gets superpowers instantly." },
+];
+
 export default function Home() {
+  const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(featuresRef, { once: true, margin: "-100px" });
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const featuresInView = useInView(featuresRef, { once: true, margin: "-100px" });
+  const stepsInView = useInView(stepsRef, { once: true, margin: "-100px" });
+
+  const { scrollYProgress } = useScroll();
+  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -80]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.25], [1, 0]);
 
   return (
-    <div className="relative min-h-screen">
-      {/* Hero Section */}
-      <section className="flex flex-col items-center justify-center min-h-[90vh] px-6 text-center">
-        {/* Glowing orb behind hero */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] opacity-20 pointer-events-none">
-          <div
-            className="w-full h-full rounded-full blur-3xl"
-            style={{
-              background:
-                "radial-gradient(ellipse at center, rgba(196,149,106,0.3) 0%, transparent 70%)",
-            }}
-          />
-        </div>
-
-        <motion.div
-          className="relative z-10 flex flex-col items-center gap-6 max-w-4xl"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: {},
-            visible: { transition: { staggerChildren: 0.15 } },
-          }}
-        >
-          {/* Badge */}
-          <motion.div
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: springTransition },
-            }}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.1] backdrop-blur-sm"
+    <div className="relative">
+      {/* ── HERO ── */}
+      <motion.section
+        ref={heroRef}
+        style={{ y: heroY, opacity: heroOpacity }}
+        className="min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-14"
+      >
+        <div className="max-w-[1400px] mx-auto w-full">
+          {/* Bracket tag */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="font-mono text-xs tracking-widest text-fg-dim mb-8"
           >
-            <div className="w-2 h-2 rounded-full bg-amber-warm animate-pulse" />
-            <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
-              Powered by MCP Protocol
-            </span>
-          </motion.div>
+            [THE_SKILLS_MARKETPLACE]
+          </motion.p>
 
-          {/* Main heading */}
+          {/* Massive heading */}
           <motion.h1
-            variants={{
-              hidden: { opacity: 0, y: 30 },
-              visible: { opacity: 1, y: 0, transition: springTransition },
-            }}
-            className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] text-white"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="text-[clamp(2.5rem,8vw,7rem)] font-light leading-[0.95] tracking-tight"
           >
-            AI That Thinks{" "}
-            <span className="text-white/80">With You,</span>
+            <span className="text-fg">AI That Thinks.</span>
             <br />
-            <span className="text-white/60">Not For You.</span>
+            <span className="text-fg-muted">With You,</span>
+            <br />
+            <span className="text-fg-dim">Not For You.</span>
           </motion.h1>
 
-          {/* Subtext */}
+          {/* Subtitle */}
           <motion.p
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: springTransition },
-            }}
-            className="text-lg md:text-xl text-white/50 max-w-2xl leading-relaxed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.6 }}
+            className="mt-8 text-base md:text-lg text-fg-muted max-w-xl leading-relaxed"
           >
             Equip your AI with premium skills instantly via MCP.
             A decentralized marketplace for the agents of tomorrow.
           </motion.p>
 
-          {/* CTA Buttons */}
+          {/* CTAs */}
           <motion.div
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: springTransition },
-            }}
-            className="flex flex-col sm:flex-row items-center gap-4 mt-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.6 }}
+            className="mt-10 flex items-center gap-6"
           >
             <Link href="/vault">
               <Button variant="primary" size="lg">
-                Explore Skills
+                EXPLORE VAULT →
               </Button>
             </Link>
-            <Link href="/forge">
-              <Button variant="ghost" size="lg">
-                Launch a Skill
-              </Button>
-            </Link>
-          </motion.div>
-
-          {/* Stats row */}
-          <motion.div
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: springTransition },
-            }}
-            className="flex items-center gap-8 mt-8 text-center"
-          >
-            {[
-              { value: "100+", label: "Skills Listed" },
-              { value: "$50K+", label: "Creator Earnings" },
-              { value: "2.5K", label: "Active Agents" },
-            ].map((stat) => (
-              <div key={stat.label} className="flex flex-col items-center">
-                <span className="text-2xl font-bold font-mono text-white">
-                  {stat.value}
-                </span>
-                <span className="text-xs text-white/40 mt-1">{stat.label}</span>
-              </div>
-            ))}
-          </motion.div>
-        </motion.div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5, duration: 1 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-        >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="w-6 h-10 rounded-full border border-white/20 flex items-start justify-center p-2"
-          >
-            <div className="w-1 h-2 rounded-full bg-white/40" />
-          </motion.div>
-        </motion.div>
-      </section>
-
-      {/* Features Section */}
-      <section ref={featuresRef} className="relative px-6 py-24 max-w-6xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-4">
-            Built Different
-          </h2>
-          <p className="text-white/40 max-w-lg mx-auto">
-            The infrastructure layer for AI skill distribution. Onchain. Decentralized. Unstoppable.
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {features.map((feature, i) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 40 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{
-                delay: i * 0.15,
-                duration: 0.6,
-                ease: [0.25, 0.46, 0.45, 0.94],
-              }}
+            <Link
+              href="/forge"
+              className="text-xs font-mono tracking-wider text-fg-muted hover:text-fg transition-colors"
             >
-              <GlassCard className="p-8 h-full">
-                <div className="text-amber-warm/80 mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-white/50 leading-relaxed">
-                  {feature.description}
-                </p>
-              </GlassCard>
-            </motion.div>
-          ))}
+              FORGE A SKILL [+]
+            </Link>
+          </motion.div>
+
+          {/* Scroll hint */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 1 }}
+            className="mt-24 text-[10px] font-mono text-fg-dim tracking-widest"
+          >
+            [scroll_down]
+          </motion.p>
         </div>
-      </section>
+      </motion.section>
 
-      {/* How it works */}
-      <section className="relative px-6 py-24 max-w-4xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-4">
-            Three Steps. Infinite Skills.
-          </h2>
-        </motion.div>
-
-        <div className="space-y-8">
-          {[
-            { step: "01", title: "Connect", desc: "Link your wallet through Privy. Works with any EVM wallet or email login." },
-            { step: "02", title: "Discover or Create", desc: "Browse The Vault for skills, or forge your own in The Forge. Upload a .md file and pay 0.5 USDC to list." },
-            { step: "03", title: "Equip Your Agent", desc: "Purchase skills with USDC and connect via MCP. Your AI agent gets superpowers instantly." },
-          ].map((item, i) => (
+      {/* ── STATS BAR ── */}
+      <section className="border-y border-border py-10 px-6">
+        <div className="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+          {stats.map((s, i) => (
             <motion.div
-              key={item.step}
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              key={s.label}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, duration: 0.5 }}
-              className="flex items-start gap-6"
             >
-              <span className="text-4xl font-bold font-mono text-white/10 shrink-0">
-                {item.step}
-              </span>
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-1">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-white/40">{item.desc}</p>
-              </div>
+              <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-2">
+                [{s.label}]
+              </p>
+              <p className="text-3xl md:text-4xl font-light text-fg tracking-tight">
+                {s.value}
+              </p>
+              <p className="text-xs text-fg-muted mt-1">{s.sub}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* CTA Bottom */}
-      <section className="relative px-6 py-32 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={springTransition}
-          className="max-w-2xl mx-auto"
-        >
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6">
-            Ready to upgrade your AI?
-          </h2>
-          <p className="text-white/40 mb-8">
-            Join the marketplace. Buy skills. Sell skills. Build the future of AI agents.
-          </p>
-          <Link href="/vault">
-            <Button variant="primary" size="lg">
-              Enter The Vault
-            </Button>
-          </Link>
-        </motion.div>
+      {/* ── FEATURES ── */}
+      <section ref={featuresRef} className="py-32 px-6 md:px-16 lg:px-24">
+        <div className="max-w-[1400px] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={featuresInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6 }}
+            className="mb-20"
+          >
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
+              [the_protocol]
+            </p>
+            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
+              Built Different
+            </h2>
+            <p className="text-fg-muted mt-4 max-w-lg">
+              The infrastructure layer for AI skill distribution.
+              Onchain. Decentralized. Unstoppable.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border">
+            {features.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 40 }}
+                animate={featuresInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: i * 0.15, duration: 0.6 }}
+                className="bg-bg p-8 md:p-10 group hover:bg-bg-elevated transition-colors duration-300"
+              >
+                <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-6">
+                  [{f.title.toLowerCase().replace(/\s/g, "_")}]
+                </p>
+                <h3 className="text-xl font-medium text-fg mb-3">{f.title}</h3>
+                <p className="text-sm text-fg-muted leading-relaxed">{f.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section ref={stepsRef} className="py-32 px-6 md:px-16 lg:px-24 border-t border-border">
+        <div className="max-w-[1400px] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={stepsInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6 }}
+            className="mb-20"
+          >
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
+              [how_it_works]
+            </p>
+            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
+              Three Steps. Infinite Skills.
+            </h2>
+          </motion.div>
+
+          <div className="space-y-0 border-l border-border ml-4">
+            {steps.map((item, i) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, x: -20 }}
+                animate={stepsInView ? { opacity: 1, x: 0 } : {}}
+                transition={{ delay: i * 0.15, duration: 0.5 }}
+                className="pl-10 py-8 relative group"
+              >
+                {/* Dot on line */}
+                <div className="absolute left-[-5px] top-10 w-[9px] h-[9px] rounded-full border border-border bg-bg group-hover:bg-accent-muted transition-colors" />
+                <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-2">
+                  [{item.step}]
+                </p>
+                <h3 className="text-lg font-medium text-fg mb-1">{item.title}</h3>
+                <p className="text-sm text-fg-muted max-w-md">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA BOTTOM ── */}
+      <section className="py-40 px-6 border-t border-border">
+        <div className="max-w-[1400px] mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-6">
+              [get_started]
+            </p>
+            <h2 className="text-4xl md:text-6xl font-light tracking-tight text-fg mb-6">
+              Ready to upgrade your AI?
+            </h2>
+            <p className="text-fg-muted mb-10 max-w-md mx-auto">
+              Join the marketplace. Buy skills. Sell skills.
+              Build the future of AI agents.
+            </p>
+            <Link href="/vault">
+              <Button variant="primary" size="lg">
+                ENTER THE VAULT →
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── LIVE TICKER ── */}
+      <div className="border-t border-border py-3 overflow-hidden">
+        <motion.div
+          animate={{ x: [0, -1200] }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          className="flex gap-12 whitespace-nowrap"
+        >
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} className="font-mono text-[10px] text-fg-dim tracking-wider">
+              {i % 2 === 0
+                ? "[TX: 0x8f...3a] Agent_77 integrated Python_Logic.md | Status: Success"
+                : "[TX: 0xb2...7c] Agent_42 purchased Advanced_CodeReview.md | 5.00 USDC"
+              }
+            </span>
+          ))}
+        </motion.div>
+      </div>
     </div>
   );
 }
