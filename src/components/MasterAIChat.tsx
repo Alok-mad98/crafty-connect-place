@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE } from "@/lib/contracts";
 
 interface Message {
   role: "user" | "assistant";
@@ -13,8 +14,7 @@ export default function MasterAIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "I am the Nexus Orchestrator. Need help integrating a skill?",
+      content: "I am the Nexus Orchestrator. Need help integrating a skill?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -41,16 +41,11 @@ export default function MasterAIChat() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
@@ -72,16 +67,13 @@ export default function MasterAIChat() {
 
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
+            const content = parsed.content || parsed.choices?.[0]?.delta?.content;
             if (content) {
               setMessages((prev) => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: last.content + content,
-                  };
+                  updated[updated.length - 1] = { ...last, content: last.content + content };
                 }
                 return updated;
               });
@@ -97,10 +89,7 @@ export default function MasterAIChat() {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last?.role === "assistant" && !last.content) {
-          updated[updated.length - 1] = {
-            ...last,
-            content: "Sorry, I encountered an error. Please try again.",
-          };
+          updated[updated.length - 1] = { ...last, content: "Sorry, I encountered an error. Please try again." };
         }
         return updated;
       });
@@ -111,7 +100,6 @@ export default function MasterAIChat() {
 
   return (
     <>
-      {/* Floating button */}
       <AnimatePresence>
         {!isOpen && (
           <motion.button
@@ -128,7 +116,6 @@ export default function MasterAIChat() {
         )}
       </AnimatePresence>
 
-      {/* Chat panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -138,7 +125,6 @@ export default function MasterAIChat() {
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-bg-card border border-border flex flex-col overflow-hidden"
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div>
                 <p className="font-mono text-[10px] tracking-widest text-fg-dim">[master_ai]</p>
@@ -152,7 +138,6 @@ export default function MasterAIChat() {
               </button>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
               {messages.map((msg, i) => (
                 <motion.div
@@ -182,7 +167,6 @@ export default function MasterAIChat() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div className="px-4 py-3 border-t border-border">
               <div className="flex items-center gap-2">
                 <input

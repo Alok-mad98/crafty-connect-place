@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import { Roboto_Mono } from "next/font/google";
-import "./globals.css";
+import { Inter, Roboto_Mono } from "next/font/google";
+import "../index.css";
 import Providers from "@/providers/PrivyProvider";
 import CinematicBackground from "@/components/CinematicBackground";
 import Navbar from "@/components/Navbar";
@@ -17,7 +16,6 @@ const geistMono = Roboto_Mono({
   variable: "--font-geist-mono",
 });
 
-// Force dynamic rendering — app requires runtime auth (Privy)
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {

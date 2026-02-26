@@ -1,33 +1,34 @@
-"use client";
-
-import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
+import { createRoot } from "react-dom/client";
+import { PrivyProvider } from "@privy-io/react-auth";
+import { WagmiProvider, createConfig, http } from "wagmi";
 import { base } from "viem/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, createConfig, http } from "wagmi";
 import { useState } from "react";
+import App from "./App";
+import "./index.css";
 
 const wagmiConfig = createConfig({
   chains: [base],
   transports: { [base.id]: http() },
 });
 
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmm1m68dw007c0clei81e66zy";
+const privyAppId = import.meta.env.VITE_PRIVY_APP_ID || "cmm1m68dw007c0clei81e66zy";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+function Root() {
   const [queryClient] = useState(() => new QueryClient());
 
   if (!privyAppId) {
     return (
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          {children}
+          <App />
         </WagmiProvider>
       </QueryClientProvider>
     );
   }
 
   return (
-    <BasePrivyProvider
+    <PrivyProvider
       appId={privyAppId}
       config={{
         appearance: { theme: "dark", accentColor: "#c4956a" },
@@ -42,9 +43,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     >
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          {children}
+          <App />
         </WagmiProvider>
       </QueryClientProvider>
-    </BasePrivyProvider>
+    </PrivyProvider>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<Root />);

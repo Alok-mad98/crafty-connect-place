@@ -1,7 +1,6 @@
-"use client";
-
 import { motion } from "framer-motion";
 import Button from "./ui/Button";
+import { PINATA_GATEWAY } from "@/lib/contracts";
 
 export interface SkillData {
   id: string;
@@ -44,7 +43,6 @@ export default function SkillCard({
       }}
       className="group bg-bg-card border border-border p-6 flex flex-col hover:bg-bg-elevated hover:border-border-hover transition-colors duration-300"
     >
-      {/* Tag + verified */}
       <div className="flex items-center justify-between mb-4">
         <p className="font-mono text-[10px] tracking-widest text-fg-dim">
           [skill_{String(index).padStart(2, "0")}]
@@ -52,15 +50,12 @@ export default function SkillCard({
         <div className="w-2 h-2 rounded-full bg-success/60" title="Verified" />
       </div>
 
-      {/* Title */}
       <h3 className="text-base font-medium text-fg mb-2">{skill.title}</h3>
 
-      {/* Description */}
       <p className="text-sm text-fg-muted leading-relaxed mb-4 line-clamp-2 flex-grow">
         {skill.description}
       </p>
 
-      {/* Model Tags */}
       <div className="flex flex-wrap gap-2 mb-4">
         {skill.modelTags.map((tag) => (
           <span
@@ -72,7 +67,6 @@ export default function SkillCard({
         ))}
       </div>
 
-      {/* Price */}
       <div className="flex items-baseline gap-2 mb-5">
         <span className="text-xl font-mono font-light text-fg">
           {parseFloat(skill.price).toFixed(2)}
@@ -80,7 +74,6 @@ export default function SkillCard({
         <span className="text-[10px] font-mono text-fg-dim">USDC</span>
       </div>
 
-      {/* Action buttons */}
       <div className="flex gap-3">
         {purchased ? (
           <>
@@ -97,7 +90,7 @@ export default function SkillCard({
               size="sm"
               onClick={() => {
                 window.open(
-                  `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`,
+                  `https://${PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`,
                   "_blank"
                 );
               }}
@@ -128,7 +121,6 @@ export default function SkillCard({
         )}
       </div>
 
-      {/* Creator */}
       {skill.creator?.walletAddress && (
         <div className="mt-4 pt-3 border-t border-border">
           <span className="text-[10px] font-mono text-fg-dim">

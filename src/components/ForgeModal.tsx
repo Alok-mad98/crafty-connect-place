@@ -10,6 +10,7 @@ import {
   ERC20_ABI,
   CONTRACT_ADDRESS,
   USDC_ADDRESS,
+  API_BASE,
 } from "@/lib/contracts";
 
 const MODEL_OPTIONS = ["CLAUDE", "GPT4", "LLAMA", "GEMINI"] as const;
@@ -93,7 +94,7 @@ export default function ForgeModal() {
     try {
       const formData = new FormData();
       formData.append("file", state.file);
-      const uploadRes = await fetch("/api/skills/upload", {
+      const uploadRes = await fetch(`${API_BASE}/api/skills/upload`, {
         method: "POST",
         body: formData,
       });
@@ -133,7 +134,7 @@ export default function ForgeModal() {
       const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
       const onchainId = parsed ? Number(parsed.args[0]) : undefined;
 
-      await fetch("/api/skills", {
+      await fetch(`${API_BASE}/api/skills`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
