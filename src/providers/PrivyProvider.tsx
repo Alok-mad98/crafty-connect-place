@@ -11,7 +11,7 @@ const wagmiConfig = createConfig({
   transports: { [base.id]: http() },
 });
 
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmm1m68dw007c0clei81e66zy";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
