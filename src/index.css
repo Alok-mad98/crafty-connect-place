@@ -1,10 +1,30 @@
 @import "tailwindcss";
 
+@theme {
+  --color-navy: #0a0e1a;
+  --color-navy-light: #111827;
+  --color-amber-warm: #c4956a;
+  --color-amber-glow: #d4a574;
+
+  --font-sans: "system-ui", "sans-serif";
+  --font-mono: "monospace";
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-twinkle: twinkle 3s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+}
+
 :root {
   --background: #0a0e1a;
   --foreground: #ffffff;
-  --amber-warm: #c4956a;
-  --amber-glow: #d4a574;
 }
 
 html {
