@@ -1,18 +1,33 @@
+"use client";
+
 import { motion } from "framer-motion";
 import { useEffect, useState, useCallback } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { ethers } from "ethers";
 import SkillCard, { type SkillData } from "@/components/SkillCard";
 import Button from "@/components/ui/Button";
-import { Link } from "react-router-dom";
+import {
+  AGENT_SKILLS_MARKET_ABI,
+  ERC20_ABI,
+  CONTRACT_ADDRESS,
+  USDC_ADDRESS,
+} from "@/lib/contracts";
 
-export default function Vault() {
+export default function VaultPage() {
   const [skills, setSkills] = useState<SkillData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [purchasedIds] = useState<Set<string>>(new Set());
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set());
+  const { authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
 
   const fetchSkills = useCallback(async () => {
     try {
-      // TODO: Connect to Lovable Cloud backend
-      setSkills([]);
+      const res = await fetch("/api/skills");
+      if (res.ok) {
+        const data = await res.json();
+        setSkills(data.skills || []);
+      }
     } catch (err) {
       console.error("Failed to fetch skills:", err);
     } finally {
@@ -25,8 +40,46 @@ export default function Vault() {
   }, [fetchSkills]);
 
   const handleBuy = async (skill: SkillData) => {
-    console.log("Buy skill:", skill.id);
-    // TODO: Implement with wallet integration
+    if (!authenticated || !wallets[0] || skill.onchainId == null) return;
+
+    setPurchasing(skill.id);
+    try {
+      const wallet = wallets[0];
+      await wallet.switchChain(8453); // Base
+      const ethereumProvider = await wallet.getEthereumProvider();
+      const provider = new ethers.BrowserProvider(ethereumProvider);
+      const signer = await provider.getSigner();
+
+      // Approve USDC
+      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+      const priceWei = ethers.parseUnits(skill.price, 6);
+      const allowance = await usdc.allowance(await signer.getAddress(), CONTRACT_ADDRESS);
+      if (allowance < priceWei) {
+        const approveTx = await usdc.approve(CONTRACT_ADDRESS, priceWei);
+        await approveTx.wait();
+      }
+
+      // Buy skill
+      const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
+      const buyTx = await market.buySkill(skill.onchainId);
+      const receipt = await buyTx.wait();
+
+      // Record purchase
+      await fetch("/api/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillId: skill.id,
+          txHash: receipt.hash,
+        }),
+      });
+
+      setPurchasedIds((prev) => new Set(prev).add(skill.id));
+    } catch (err) {
+      console.error("Purchase failed:", err);
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   const handleConnect = (skill: SkillData) => {
@@ -38,6 +91,7 @@ export default function Vault() {
   return (
     <div className="min-h-screen px-6 py-12">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -52,6 +106,7 @@ export default function Vault() {
           </p>
         </motion.div>
 
+        {/* Filter bar */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -68,6 +123,7 @@ export default function Vault() {
           ))}
         </motion.div>
 
+        {/* Skills Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -107,9 +163,9 @@ export default function Vault() {
             <p className="text-white/30 mb-6">
               No skills yet. Be the first to launch one.
             </p>
-            <Link to="/forge">
+            <a href="/forge">
               <Button variant="primary">Launch a Skill</Button>
-            </Link>
+            </a>
           </motion.div>
         )}
       </div>

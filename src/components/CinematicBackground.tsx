@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 
@@ -31,6 +33,7 @@ export default function CinematicBackground() {
     resize();
     window.addEventListener("resize", resize);
 
+    // Initialize stars
     starsRef.current = Array.from({ length: 250 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height * 0.65,
@@ -51,6 +54,7 @@ export default function CinematicBackground() {
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.fill();
 
+        // Glow effect for larger stars
         if (star.size > 1.5) {
           ctx.beginPath();
           ctx.arc(star.x, star.y, star.size * 3, 0, Math.PI * 2);
@@ -78,7 +82,11 @@ export default function CinematicBackground() {
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden">
-      <motion.div style={{ y: skyY }} className="absolute inset-0">
+      {/* Sky gradient layer */}
+      <motion.div
+        style={{ y: skyY }}
+        className="absolute inset-0"
+      >
         <div
           className="absolute inset-0"
           style={{
@@ -102,7 +110,11 @@ export default function CinematicBackground() {
         />
       </motion.div>
 
-      <motion.div style={{ y: fieldY }} className="absolute inset-0">
+      {/* Horizon warm glow */}
+      <motion.div
+        style={{ y: fieldY }}
+        className="absolute inset-0"
+      >
         <div
           className="absolute bottom-0 left-0 right-0 h-[45%]"
           style={{
@@ -118,6 +130,7 @@ export default function CinematicBackground() {
             `,
           }}
         />
+        {/* Subtle grass-field texture suggestion */}
         <div
           className="absolute bottom-0 left-0 right-0 h-[20%] opacity-30"
           style={{
@@ -134,12 +147,14 @@ export default function CinematicBackground() {
         />
       </motion.div>
 
+      {/* Star canvas */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{ mixBlendMode: "screen" }}
       />
 
+      {/* Atmospheric haze */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -151,6 +166,7 @@ export default function CinematicBackground() {
         }}
       />
 
+      {/* Vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{

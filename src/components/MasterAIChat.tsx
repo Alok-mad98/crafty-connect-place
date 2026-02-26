@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -36,27 +38,62 @@ export default function MasterAIChat() {
     if (!input.trim() || isStreaming) return;
 
     const userMessage: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMessage, { role: "assistant", content: "" }]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput("");
     setIsStreaming(true);
 
+    // Add empty assistant message for streaming
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
-      // TODO: Connect to Lovable Cloud edge function for chat
-      // For now, simulate a response
-      setTimeout(() => {
-        setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === "assistant") {
-            updated[updated.length - 1] = {
-              ...last,
-              content: "Chat backend is being migrated to Lovable Cloud. Stay tuned!",
-            };
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Chat request failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value);
+        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+
+        for (const line of lines) {
+          const data = line.slice(6);
+          if (data === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.content) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.role === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: last.content + parsed.content,
+                  };
+                }
+                return updated;
+              });
+            }
+          } catch {
+            // Skip malformed chunks
           }
-          return updated;
-        });
-        setIsStreaming(false);
-      }, 1000);
+        }
+      }
     } catch (err) {
       console.error("Chat error:", err);
       setMessages((prev) => {
@@ -70,12 +107,14 @@ export default function MasterAIChat() {
         }
         return updated;
       });
+    } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming]);
+  }, [input, isStreaming, messages]);
 
   return (
     <>
+      {/* Floating button */}
       <AnimatePresence>
         {!isOpen && (
           <motion.button
@@ -87,13 +126,24 @@ export default function MasterAIChat() {
             onClick={() => setIsOpen(true)}
             className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] shadow-2xl shadow-black/30 flex items-center justify-center cursor-pointer hover:bg-white/[0.12] transition-colors"
           >
-            <svg className="w-6 h-6 text-amber-warm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+            <svg
+              className="w-6 h-6 text-amber-warm"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+              />
             </svg>
           </motion.button>
         )}
       </AnimatePresence>
 
+      {/* Chat panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -103,11 +153,22 @@ export default function MasterAIChat() {
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed bottom-6 right-6 z-50 w-[380px] h-[520px] bg-white/[0.04] backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/40 flex flex-col overflow-hidden"
           >
+            {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-amber-warm/20 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-amber-warm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  <svg
+                    className="w-4 h-4 text-amber-warm"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -125,7 +186,8 @@ export default function MasterAIChat() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin">
               {messages.map((msg, i) => (
                 <motion.div
                   key={i}
@@ -154,6 +216,7 @@ export default function MasterAIChat() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Input */}
             <div className="px-4 py-3 border-t border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <input

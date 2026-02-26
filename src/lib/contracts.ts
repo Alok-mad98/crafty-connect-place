@@ -13,5 +13,5 @@ export const ERC20_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
 ] as const;
 
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS ?? "";
-export const USDC_ADDRESS = import.meta.env.VITE_USDC_ADDRESS ?? "";
+export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
+export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS!;
