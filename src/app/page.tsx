@@ -56,8 +56,8 @@ export default function Home() {
         style={{ y: heroY, opacity: heroOpacity }}
         className="relative min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-14 overflow-hidden"
       >
-        {/* Eye canvas positioned on the right, overlapping hero */}
-        <div className="absolute top-0 right-0 w-full md:w-[65%] h-full pointer-events-auto z-0">
+        {/* Particle Eye Background — full hero coverage like whiskerfi */}
+        <div className="absolute inset-0 pointer-events-auto z-0">
           <EyeParticleCanvas />
         </div>
 
