@@ -62,7 +62,7 @@ export default function Home() {
         </div>
 
         {/* Hero text on top of everything */}
-        <div className="relative z-10 max-w-[1400px] mx-auto w-full">
+        <div className="relative z-10 max-w-[1400px] mx-auto w-full pointer-events-none">
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -99,7 +99,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.6 }}
-            className="mt-10 flex items-center gap-6"
+            className="mt-10 flex items-center gap-6 pointer-events-auto"
           >
             <Link href="/vault">
               <Button variant="primary" size="lg">
