@@ -4,13 +4,13 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
+import { supabase } from "@/integrations/supabase/client";
 import Button from "./ui/Button";
 import {
   AGENT_SKILLS_MARKET_ABI,
   ERC20_ABI,
   CONTRACT_ADDRESS,
   USDC_ADDRESS,
-  API_BASE,
 } from "@/lib/contracts";
 
 const MODEL_OPTIONS = ["CLAUDE", "GPT4", "LLAMA", "GEMINI"] as const;
@@ -94,12 +94,12 @@ export default function ForgeModal() {
     try {
       const formData = new FormData();
       formData.append("file", state.file);
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const uploadRes = await fetch(`${supabaseUrl}/functions/v1/upload-skill`, {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+      const uploadRes = await fetch(`${SUPABASE_URL}/functions/v1/upload-skill`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${supabaseKey}`,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
         },
         body: formData,
       });
@@ -145,19 +145,8 @@ export default function ForgeModal() {
       const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
       const onchainId = parsed ? Number(parsed.args[0]) : undefined;
 
-      await fetch(`${API_BASE}/api/skills`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: state.title,
-          description: state.description,
-          price: state.price,
-          ipfsCid,
-          modelTags: state.modelTags,
-          onchainId,
-          txHash: receipt.hash,
-        }),
-      });
+      // TODO: Save skill metadata via edge function (skills API not yet migrated)
+      console.log("Skill minted onchain:", { ipfsCid, onchainId, txHash: receipt.hash });
 
       setStatus("done");
     } catch (err) {
