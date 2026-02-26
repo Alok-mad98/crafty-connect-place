@@ -4,6 +4,10 @@ import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { useRef } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import dynamic from "next/dynamic";
+
+const EyeParticleCanvas = dynamic(() => import("@/components/EyeParticleCanvas"), { ssr: false });
+const ComputerParticleCanvas = dynamic(() => import("@/components/ComputerParticleCanvas"), { ssr: false });
 
 const stats = [
   { label: "skills", value: "100+", sub: "Listed Skills" },
@@ -140,6 +144,54 @@ export default function Home() {
               <p className="text-xs text-fg-muted mt-1">{s.sub}</p>
             </motion.div>
           ))}
+        </div>
+      </section>
+
+      {/* ── EYE PARTICLE ANIMATION ── */}
+      <section className="py-20 px-6 md:px-16 lg:px-24 border-t border-border">
+        <div className="max-w-[1400px] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mb-8 text-center"
+          >
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
+              [the_vision]
+            </p>
+            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
+              See Through the Noise
+            </h2>
+            <p className="text-fg-muted mt-4 max-w-lg mx-auto text-sm">
+              Move your cursor to interact. AI vision, rendered in numbers.
+            </p>
+          </motion.div>
+          <EyeParticleCanvas />
+        </div>
+      </section>
+
+      {/* ── COMPUTER PARTICLE ANIMATION ── */}
+      <section className="py-20 px-6 md:px-16 lg:px-24 border-t border-border">
+        <div className="max-w-[1400px] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mb-8 text-center"
+          >
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
+              [the_machine]
+            </p>
+            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
+              Built by Code, Powered by Numbers
+            </h2>
+            <p className="text-fg-muted mt-4 max-w-lg mx-auto text-sm">
+              A retro machine alive with running code. Disturb it.
+            </p>
+          </motion.div>
+          <ComputerParticleCanvas />
         </div>
       </section>
 
