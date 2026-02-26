@@ -22,5 +22,5 @@
     "**/*.tsx",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "contracts", "supabase"]
+  "exclude": ["node_modules", "contracts", "supabase", ".next", "next-env.d.ts"]
 }
