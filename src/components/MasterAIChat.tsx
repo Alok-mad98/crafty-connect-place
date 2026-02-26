@@ -41,27 +41,16 @@ export default function MasterAIChat() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer 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",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "You are the Master AI of the AI Skills Marketplace — a decentralized platform where humans and AI agents buy and sell .md skill files via MCP (Model Context Protocol). You help users understand what MCP skills are, browse skills in The Vault, launch new skills in The Forge, understand USDC payments on Base chain, and troubleshoot MCP connections. Be concise, helpful, and knowledgeable about Web3 and AI agents. Never execute transactions — only advise.",
-            },
-            ...newMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-          stream: true,
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
