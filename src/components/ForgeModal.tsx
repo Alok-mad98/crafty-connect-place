@@ -93,15 +93,14 @@ export default function ForgeModal() {
     try {
       const formData = new FormData();
       formData.append("file", state.file);
-      const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || "";
-      const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-      if (!SUPABASE_URL || !SUPABASE_KEY) {
-        throw new Error("Backend config missing in preview (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY)");
-      }
-      const uploadRes = await fetch(`${SUPABASE_URL}/functions/v1/upload-skill`, {
+
+      const SUPABASE_FN_URL = "https://xiofvutfjujnzdzlgmyc.supabase.co/functions/v1/upload-skill";
+      const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
+
+      const uploadRes = await fetch(SUPABASE_FN_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${SUPABASE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_ANON}`,
         },
         body: formData,
       });
