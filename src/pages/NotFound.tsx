@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import Button from "@/components/ui/Button";
 
 export default function NotFound() {
@@ -9,7 +7,7 @@ export default function NotFound() {
       <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">[404]</p>
       <h1 className="text-4xl font-light text-fg mb-4">Not Found</h1>
       <p className="text-fg-muted mb-8">This page doesn't exist.</p>
-      <Link href="/">
+      <Link to="/">
         <Button variant="primary">BACK TO HOME →</Button>
       </Link>
     </div>

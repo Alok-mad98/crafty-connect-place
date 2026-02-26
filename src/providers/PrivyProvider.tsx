@@ -1,5 +1,3 @@
-"use client";
-
 import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
 import { base } from "viem/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,7 +9,7 @@ const wagmiConfig = createConfig({
   transports: { [base.id]: http() },
 });
 
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmm1m68dw007c0clei81e66zy";
+const privyAppId = import.meta.env.VITE_PRIVY_APP_ID || "cmm1m68dw007c0clei81e66zy";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
