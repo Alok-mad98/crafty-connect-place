@@ -1,7 +1,4 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "react-router-dom";
 import { usePrivy } from "@privy-io/react-auth";
 
 const navLinks = [
@@ -11,7 +8,7 @@ const navLinks = [
 ];
 
 export default function Navbar() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const { login, logout, authenticated, user } = usePrivy();
 
   const displayAddress = user?.wallet?.address
@@ -21,7 +18,7 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border">
       <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <span className="text-xs font-mono text-fg-muted">[N_X]</span>
           <span className="text-sm font-semibold tracking-widest text-fg">NEXUS</span>
         </Link>
@@ -32,7 +29,7 @@ export default function Navbar() {
             return (
               <Link
                 key={link.href}
-                href={link.href}
+                to={link.href}
                 className={`
                   text-xs font-mono tracking-wider transition-colors duration-200 pb-0.5
                   ${isActive

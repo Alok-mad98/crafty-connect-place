@@ -1,17 +1,8 @@
-import { PinataSDK } from "pinata";
+// Pinata is used server-side only (edge functions).
+// This file exports gateway helpers for the frontend.
 
-export const pinata = new PinataSDK({
-  pinataJwt: process.env.PINATA_JWT!,
-  pinataGateway: process.env.NEXT_PUBLIC_PINATA_GATEWAY || "blue-obvious-jackal-985.mypinata.cloud",
-});
+const PINATA_GATEWAY = "blue-obvious-jackal-985.mypinata.cloud";
 
-export async function uploadSkillToIPFS(file: File): Promise<string> {
-  const result = await pinata.upload.public.file(file);
-  return result.cid;
-}
-
-export async function fetchSkillFromIPFS(cid: string): Promise<string> {
-  const url = await pinata.gateways.public.convert(cid);
-  const response = await fetch(url);
-  return response.text();
+export function getIPFSUrl(cid: string): string {
+  return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
 }

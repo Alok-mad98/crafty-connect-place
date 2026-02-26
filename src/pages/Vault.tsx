@@ -1,10 +1,8 @@
-"use client";
-
 import { motion } from "framer-motion";
 import { useEffect, useState, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import SkillCard, { type SkillData } from "@/components/SkillCard";
 import Button from "@/components/ui/Button";
 import {
@@ -111,7 +109,7 @@ export default function Vault() {
             <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-6">[empty_state]</p>
             <h3 className="text-xl font-light text-fg-muted mb-2">The Vault is empty</h3>
             <p className="text-sm text-fg-dim mb-8">No skills yet. Be the first to launch one.</p>
-            <Link href="/forge"><Button variant="primary">LAUNCH A SKILL →</Button></Link>
+            <Link to="/forge"><Button variant="primary">LAUNCH A SKILL →</Button></Link>
           </motion.div>
         )}
       </div>

@@ -1,8 +1,6 @@
-"use client";
-
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { useRef } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import Button from "@/components/ui/Button";
 import EyeParticleCanvas from "@/components/EyeParticleCanvas";
 import ComputerParticleCanvas from "@/components/ComputerParticleCanvas";
@@ -98,13 +96,13 @@ export default function Index() {
             transition={{ delay: 0.8, duration: 0.6 }}
             className="mt-10 flex items-center gap-6 pointer-events-auto"
           >
-            <Link href="/vault">
+            <Link to="/vault">
               <Button variant="primary" size="lg">
                 EXPLORE VAULT →
               </Button>
             </Link>
             <Link
-              href="/forge"
+              to="/forge"
               className="text-xs font-mono tracking-wider text-fg-muted hover:text-fg transition-colors"
             >
               FORGE A SKILL [+]
@@ -301,7 +299,7 @@ export default function Index() {
               Join the marketplace. Buy skills. Sell skills.
               Build the future of AI agents.
             </p>
-            <Link href="/vault">
+            <Link to="/vault">
               <Button variant="primary" size="lg">
                 ENTER THE VAULT →
               </Button>
