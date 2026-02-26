@@ -21,12 +21,13 @@ interface Particle {
 type BlinkState = "open" | "closing" | "closed" | "opening";
 
 const CHARS = "0123456789".split("");
-const PARTICLE_COUNT = 10000;
+const PARTICLE_COUNT = 12000;
 const REPULSION_RADIUS = 120;
 const REPULSION_FORCE = 6;
-const FONT_SIZE = 12;
+const FONT_SIZE = 11;
 
-function generateEyeShape(
+/* ── Cat-eye shape: wide almond with vertical slit pupil ── */
+function generateCatEyeShape(
   cx: number,
   cy: number,
   w: number,
@@ -35,35 +36,58 @@ function generateEyeShape(
 ) {
   const particles: { x: number; y: number; group: Particle["group"] }[] = [];
 
-  const eyeW = w * 0.48;
-  const eyeH = h * 0.34;
-  const pupilR = eyeW * 0.18;
-  const irisR = eyeW * 0.32;
+  // Eye dimensions — wide almond
+  const eyeW = w * 0.42;
+  const eyeH = h * 0.28;
+
+  // Vertical slit pupil dimensions
+  const slitHalfW = eyeW * 0.04; // very narrow
+  const slitHalfH = eyeH * 0.65; // tall vertical slit
+
+  // Iris radius
+  const irisR = eyeW * 0.22;
 
   for (let i = 0; i < count; i++) {
     const rx = (Math.random() - 0.5) * 2 * eyeW;
     const ry = (Math.random() - 0.5) * 2 * eyeH;
 
+    // Almond boundary using smoothed power curve
     const normX = Math.abs(rx / eyeW);
-    const topBound = eyeH * (1 - normX * normX);
-    const botBound = -eyeH * (1 - normX * normX) * 0.85;
+    const curve = Math.pow(1 - normX * normX, 1.3);
+    const topBound = eyeH * curve;
+    const botBound = -eyeH * curve * 0.9;
 
     if (ry < topBound && ry > botBound) {
       const dist = Math.sqrt(rx * rx + ry * ry);
       let group: Particle["group"] = "white";
 
-      if (dist < pupilR) {
+      // Vertical slit pupil check
+      const inSlit =
+        Math.abs(rx) < slitHalfW + 2 &&
+        Math.abs(ry) < slitHalfH;
+      // Slightly wider slit with falloff
+      const nearSlit =
+        Math.abs(rx) < slitHalfW * 3 &&
+        Math.abs(ry) < slitHalfH * 0.9;
+
+      if (inSlit) {
+        group = "pupil";
+      } else if (nearSlit && Math.random() > 0.3) {
         group = "pupil";
       } else if (dist < irisR) {
-        group = Math.random() > 0.4 ? "iris" : "white";
+        group = Math.random() > 0.35 ? "iris" : "white";
       }
 
-      // Outline particles along the edge
-      const edgeDist = Math.min(
-        Math.abs(ry - topBound),
-        Math.abs(ry - botBound)
-      );
-      if (edgeDist < 8) {
+      // Outline particles along the almond edge
+      const edgeDistTop = Math.abs(ry - topBound);
+      const edgeDistBot = Math.abs(ry - botBound);
+      const edgeDist = Math.min(edgeDistTop, edgeDistBot);
+      if (edgeDist < 6) {
+        group = "outline";
+      }
+
+      // Corner points — sharp tips of the almond
+      if (normX > 0.88 && edgeDist < 12) {
         group = "outline";
       }
 
@@ -74,6 +98,7 @@ function generateEyeShape(
   return particles;
 }
 
+/* ── Closed eye: thin curved line ── */
 function generateClosedEyeShape(
   cx: number,
   cy: number,
@@ -81,12 +106,13 @@ function generateClosedEyeShape(
   count: number
 ) {
   const coords: { x: number; y: number }[] = [];
-  const lineW = w * 0.48;
+  const lineW = w * 0.42;
 
   for (let i = 0; i < count; i++) {
     const rx = (Math.random() - 0.5) * 2 * lineW;
     const normX = rx / lineW;
-    const ry = Math.sin(normX * Math.PI) * 10 + (Math.random() - 0.5) * 8;
+    const ry =
+      Math.sin(normX * Math.PI) * 8 + (Math.random() - 0.5) * 6;
     coords.push({ x: cx + rx, y: cy + ry });
   }
   return coords;
@@ -102,7 +128,9 @@ export default function EyeParticleCanvas() {
   const timeRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const closedMapRef = useRef<{ x: number; y: number }[]>([]);
-  const openMapRef = useRef<{ x: number; y: number; group: Particle["group"] }[]>([]);
+  const openMapRef = useRef<
+    { x: number; y: number; group: Particle["group"] }[]
+  >([]);
   const sizeRef = useRef({ w: 0, h: 0 });
 
   const init = useCallback(() => {
@@ -120,7 +148,7 @@ export default function EyeParticleCanvas() {
     const cx = w / 2;
     const cy = h / 2;
 
-    const openMap = generateEyeShape(cx, cy, w, h, PARTICLE_COUNT * 1.8);
+    const openMap = generateCatEyeShape(cx, cy, w, h, PARTICLE_COUNT * 2);
     const closedMap = generateClosedEyeShape(cx, cy, w, openMap.length);
 
     openMapRef.current = openMap;
@@ -139,10 +167,13 @@ export default function EyeParticleCanvas() {
       ease: 0.08 + Math.random() * 0.03,
       char: CHARS[Math.floor(Math.random() * CHARS.length)],
       opacity:
-        pt.group === "pupil" ? 0.95
-        : pt.group === "iris" ? 0.75
-        : pt.group === "outline" ? 0.8
-        : 0.3 + Math.random() * 0.25,
+        pt.group === "pupil"
+          ? 0.92 + Math.random() * 0.08
+          : pt.group === "iris"
+            ? 0.55 + Math.random() * 0.2
+            : pt.group === "outline"
+              ? 0.7 + Math.random() * 0.15
+              : 0.18 + Math.random() * 0.22,
       group: pt.group,
     }));
   }, []);
@@ -157,7 +188,10 @@ export default function EyeParticleCanvas() {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      mouseRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
     };
 
     const handleLeave = () => {
@@ -202,19 +236,33 @@ export default function EyeParticleCanvas() {
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;
 
-      const isClosed = blinkStateRef.current === "closed" || blinkStateRef.current === "closing";
+      const isClosed =
+        blinkStateRef.current === "closed" ||
+        blinkStateRef.current === "closing";
       const cx = w / 2;
       const cy = h / 2;
 
       // Pupil tracking offset
       const eyeAngle = Math.atan2(my - cy, mx - cx);
-      const pupilDist = Math.min(Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2), 200);
-      const pupilOffX = mx > -9000 ? Math.cos(eyeAngle) * Math.min(pupilDist * 0.1, 20) : 0;
-      const pupilOffY = mx > -9000 ? Math.sin(eyeAngle) * Math.min(pupilDist * 0.1, 12) : 0;
+      const pupilDist = Math.min(
+        Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2),
+        200
+      );
+      const pupilOffX =
+        mx > -9000
+          ? Math.cos(eyeAngle) * Math.min(pupilDist * 0.08, 15)
+          : 0;
+      const pupilOffY =
+        mx > -9000
+          ? Math.sin(eyeAngle) * Math.min(pupilDist * 0.06, 10)
+          : 0;
 
       const particles = particlesRef.current;
       const openMap = openMapRef.current;
       const closedMap = closedMapRef.current;
+
+      ctx.font = `${FONT_SIZE}px monospace`;
+      ctx.fillStyle = "#ffffff";
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -259,8 +307,6 @@ export default function EyeParticleCanvas() {
 
         // Draw
         ctx.globalAlpha = p.opacity;
-        ctx.fillStyle = "#ffffff";
-        ctx.font = `${FONT_SIZE}px monospace`;
         ctx.fillText(p.char, p.x, p.y);
       }
 
@@ -280,7 +326,10 @@ export default function EyeParticleCanvas() {
   }, [init]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full cursor-crosshair">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full cursor-crosshair"
+    >
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
     </div>
   );
