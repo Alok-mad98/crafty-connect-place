@@ -94,8 +94,13 @@ export default function ForgeModal() {
     try {
       const formData = new FormData();
       formData.append("file", state.file);
-      const uploadRes = await fetch(`${API_BASE}/api/skills/upload`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const uploadRes = await fetch(`${supabaseUrl}/functions/v1/upload-skill`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+        },
         body: formData,
       });
 
