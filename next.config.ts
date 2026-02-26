@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Force all pages to render client-side only — eliminates SSR "rendering" flash
+  reactStrictMode: true,
 };
 
 export default nextConfig;

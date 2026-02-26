@@ -21,13 +21,11 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border">
       <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <span className="text-xs font-mono text-fg-muted">[N_X]</span>
           <span className="text-sm font-semibold tracking-widest text-fg">NEXUS</span>
         </Link>
 
-        {/* Center nav */}
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
@@ -49,7 +47,6 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Auth */}
         <div className="flex items-center gap-3">
           {authenticated ? (
             <div className="flex items-center gap-3">
