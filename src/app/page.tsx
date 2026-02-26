@@ -57,7 +57,6 @@ export default function Home() {
         className="min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-14"
       >
         <div className="max-w-[1400px] mx-auto w-full">
-          {/* Bracket tag */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -67,7 +66,6 @@ export default function Home() {
             [THE_SKILLS_MARKETPLACE]
           </motion.p>
 
-          {/* Massive heading */}
           <motion.h1
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -81,7 +79,6 @@ export default function Home() {
             <span className="text-fg-dim">Not For You.</span>
           </motion.h1>
 
-          {/* Subtitle */}
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -92,7 +89,6 @@ export default function Home() {
             A decentralized marketplace for the agents of tomorrow.
           </motion.p>
 
-          {/* CTAs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -112,7 +108,6 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          {/* Scroll hint */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -123,6 +118,46 @@ export default function Home() {
           </motion.p>
         </div>
       </motion.section>
+
+      {/* ── EYE — Full-bleed centerpiece like whiskerfi.trade ── */}
+      <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden">
+        {/* Eye fills the viewport */}
+        <div className="absolute inset-0">
+          <EyeParticleCanvas />
+        </div>
+        {/* Overlay text */}
+        <div className="relative z-10 text-center pointer-events-none px-6">
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4"
+          >
+            [THE_VISION]
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-fg"
+          >
+            See Through
+            <br />
+            the Noise.
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="mt-4 text-xs font-mono text-fg-dim tracking-wider"
+          >
+            [move_cursor_to_interact]
+          </motion.p>
+        </div>
+      </section>
 
       {/* ── STATS BAR ── */}
       <section className="border-y border-border py-10 px-6">
@@ -147,51 +182,32 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── EYE PARTICLE ANIMATION ── */}
-      <section className="py-20 px-6 md:px-16 lg:px-24 border-t border-border">
-        <div className="max-w-[1400px] mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="mb-8 text-center"
-          >
-            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
-              [the_vision]
-            </p>
-            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
-              See Through the Noise
-            </h2>
-            <p className="text-fg-muted mt-4 max-w-lg mx-auto text-sm">
-              Move your cursor to interact. AI vision, rendered in numbers.
-            </p>
-          </motion.div>
-          <EyeParticleCanvas />
-        </div>
-      </section>
-
-      {/* ── COMPUTER PARTICLE ANIMATION ── */}
-      <section className="py-20 px-6 md:px-16 lg:px-24 border-t border-border">
-        <div className="max-w-[1400px] mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="mb-8 text-center"
-          >
-            <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
-              [the_machine]
-            </p>
-            <h2 className="text-3xl md:text-5xl font-light tracking-tight text-fg">
-              Built by Code, Powered by Numbers
-            </h2>
-            <p className="text-fg-muted mt-4 max-w-lg mx-auto text-sm">
-              A retro machine alive with running code. Disturb it.
-            </p>
-          </motion.div>
+      {/* ── COMPUTER — Full-bleed with keyboard + code ── */}
+      <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden">
+        <div className="absolute inset-0">
           <ComputerParticleCanvas />
+        </div>
+        <div className="relative z-10 text-center pointer-events-none px-6">
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4"
+          >
+            [THE_MACHINE]
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-fg"
+          >
+            Built by Code.
+            <br />
+            Powered by Numbers.
+          </motion.h2>
         </div>
       </section>
 
@@ -262,7 +278,6 @@ export default function Home() {
                 transition={{ delay: i * 0.15, duration: 0.5 }}
                 className="pl-10 py-8 relative group"
               >
-                {/* Dot on line */}
                 <div className="absolute left-[-5px] top-10 w-[9px] h-[9px] rounded-full border border-border bg-bg group-hover:bg-accent-muted transition-colors" />
                 <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-2">
                   [{item.step}]
