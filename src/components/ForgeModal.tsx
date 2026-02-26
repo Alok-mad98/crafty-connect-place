@@ -4,7 +4,6 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
-import { supabase } from "@/integrations/supabase/client";
 import Button from "./ui/Button";
 import {
   AGENT_SKILLS_MARKET_ABI,
@@ -94,8 +93,11 @@ export default function ForgeModal() {
     try {
       const formData = new FormData();
       formData.append("file", state.file);
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+      const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || "";
+      const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        throw new Error("Backend config missing in preview (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY)");
+      }
       const uploadRes = await fetch(`${SUPABASE_URL}/functions/v1/upload-skill`, {
         method: "POST",
         headers: {
