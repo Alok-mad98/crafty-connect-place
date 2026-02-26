@@ -14,15 +14,15 @@ interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-white text-black font-semibold hover:bg-white/90 active:bg-white/80",
+    "bg-fg text-bg font-medium hover:bg-fg/90 active:bg-fg/80",
   ghost:
-    "border border-white/20 text-white hover:bg-white/[0.06] active:bg-white/[0.1]",
+    "border border-border text-fg-muted hover:text-fg hover:border-border-hover active:bg-fg-ghost",
 };
 
 const sizes = {
-  sm: "px-4 py-2 text-sm",
-  md: "px-6 py-3 text-base",
-  lg: "px-8 py-4 text-lg",
+  sm: "px-4 py-2 text-xs",
+  md: "px-6 py-2.5 text-sm",
+  lg: "px-8 py-3 text-sm",
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -34,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={{ scale: 0.98 }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
         className={`
-          rounded-xl font-medium cursor-pointer
+          font-mono tracking-wider cursor-pointer
           transition-colors duration-200
           ${variants[variant]}
           ${sizes[size]}

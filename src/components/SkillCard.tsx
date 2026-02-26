@@ -42,19 +42,21 @@ export default function SkillCard({
         duration: 0.6,
         ease: [0.25, 0.46, 0.45, 0.94],
       }}
-      whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="group relative bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/20 p-6 flex flex-col hover:border-white/[0.15] transition-colors duration-300"
+      className="group bg-bg-card border border-border p-6 flex flex-col hover:bg-bg-elevated hover:border-border-hover transition-colors duration-300"
     >
-      {/* Verified badge */}
-      <div className="absolute top-4 right-4">
-        <div className="w-2 h-2 rounded-full bg-emerald-400/80" title="Verified" />
+      {/* Tag + verified */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-mono text-[10px] tracking-widest text-fg-dim">
+          [skill_{String(index).padStart(2, "0")}]
+        </p>
+        <div className="w-2 h-2 rounded-full bg-success/60" title="Verified" />
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-semibold text-white mb-2 pr-6">{skill.title}</h3>
+      <h3 className="text-base font-medium text-fg mb-2">{skill.title}</h3>
 
       {/* Description */}
-      <p className="text-sm text-white/50 leading-relaxed mb-4 line-clamp-2 flex-grow">
+      <p className="text-sm text-fg-muted leading-relaxed mb-4 line-clamp-2 flex-grow">
         {skill.description}
       </p>
 
@@ -63,7 +65,7 @@ export default function SkillCard({
         {skill.modelTags.map((tag) => (
           <span
             key={tag}
-            className="px-2.5 py-1 text-xs font-mono bg-white/[0.08] border border-white/[0.06] rounded-md text-white/70"
+            className="px-2 py-0.5 text-[10px] font-mono bg-fg-ghost border border-border text-fg-muted"
           >
             [{tag}]
           </span>
@@ -72,10 +74,10 @@ export default function SkillCard({
 
       {/* Price */}
       <div className="flex items-baseline gap-2 mb-5">
-        <span className="text-xl font-mono font-bold text-amber-warm">
+        <span className="text-xl font-mono font-light text-fg">
           {parseFloat(skill.price).toFixed(2)}
         </span>
-        <span className="text-xs font-mono text-white/40">USDC</span>
+        <span className="text-[10px] font-mono text-fg-dim">USDC</span>
       </div>
 
       {/* Action buttons */}
@@ -85,15 +87,14 @@ export default function SkillCard({
             <Button
               variant="primary"
               size="sm"
-              className="flex-1 text-xs"
+              className="flex-1"
               onClick={() => onConnect?.(skill)}
             >
-              Connect via MCP
+              CONNECT MCP
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="text-xs"
               onClick={() => {
                 window.open(
                   `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`,
@@ -101,7 +102,7 @@ export default function SkillCard({
                 );
               }}
             >
-              Download .md
+              .MD
             </Button>
           </>
         ) : (
@@ -109,29 +110,28 @@ export default function SkillCard({
             <Button
               variant="primary"
               size="sm"
-              className="flex-1 text-xs"
+              className="flex-1"
               onClick={() => onBuy?.(skill)}
             >
-              Buy Skill
+              BUY SKILL
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="text-xs"
               onClick={() => {
                 navigator.clipboard.writeText(mcpUri);
               }}
             >
-              Copy MCP URI
+              URI
             </Button>
           </>
         )}
       </div>
 
-      {/* Creator address */}
+      {/* Creator */}
       {skill.creator?.walletAddress && (
-        <div className="mt-4 pt-3 border-t border-white/[0.06]">
-          <span className="text-[10px] font-mono text-white/30">
+        <div className="mt-4 pt-3 border-t border-border">
+          <span className="text-[10px] font-mono text-fg-dim">
             by {skill.creator.walletAddress.slice(0, 6)}...
             {skill.creator.walletAddress.slice(-4)}
           </span>
