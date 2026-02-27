@@ -12,18 +12,17 @@ export default function Navbar() {
   const { login, logout, authenticated, user } = usePrivy();
 
   const displayAddress = user?.wallet?.address
-    ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
+    ? `${user.wallet.address.slice(0, 6)}…${user.wallet.address.slice(-4)}`
     : null;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border">
-      <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="text-xs font-mono text-fg-muted">[N_X]</span>
-          <span className="text-sm font-semibold tracking-widest text-fg">NEXUS</span>
-        </Link>
-
-        <div className="hidden md:flex items-center gap-8">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-bg/80 backdrop-blur-xl">
+      <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
+        {/* Left – mono tag */}
+        <div className="flex items-center gap-6">
+          <span className="font-mono text-[10px] tracking-[0.3em] text-fg-dim hidden md:block">
+            [N_X_25]
+          </span>
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -31,10 +30,10 @@ export default function Navbar() {
                 key={link.href}
                 to={link.href}
                 className={`
-                  text-xs font-mono tracking-wider transition-colors duration-200 pb-0.5
+                  text-[10px] font-mono tracking-[0.15em] transition-colors duration-300 hidden md:block
                   ${isActive
-                    ? "text-fg border-b border-fg"
-                    : "text-fg-muted hover:text-fg"
+                    ? "text-fg"
+                    : "text-fg-dim hover:text-fg-muted"
                   }
                 `}
               >
@@ -44,23 +43,31 @@ export default function Navbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Center – Brand */}
+        <Link to="/" className="absolute left-1/2 -translate-x-1/2">
+          <span className="font-serif text-lg md:text-xl tracking-[0.15em] text-fg font-light">
+            Nexus
+          </span>
+        </Link>
+
+        {/* Right – Wallet */}
+        <div className="flex items-center gap-4">
           {authenticated ? (
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-fg-muted">
+            <>
+              <span className="text-[10px] font-mono text-fg-dim tracking-wider">
                 {displayAddress}
               </span>
               <button
                 onClick={logout}
-                className="text-xs font-mono text-fg-dim hover:text-fg-muted transition-colors"
+                className="text-[10px] font-mono text-fg-dim hover:text-fg-muted transition-colors tracking-wider cursor-pointer"
               >
-                DISCONNECT
+                [×]
               </button>
-            </div>
+            </>
           ) : (
             <button
               onClick={login}
-              className="px-5 py-2 text-xs font-mono tracking-wider border border-border hover:border-border-hover text-fg transition-all duration-200 rounded-sm"
+              className="px-5 py-2 text-[10px] font-mono tracking-[0.2em] border border-border hover:border-border-hover text-fg-muted hover:text-fg transition-all duration-300 cursor-pointer"
             >
               CONNECT
             </button>
