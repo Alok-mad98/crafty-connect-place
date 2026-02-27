@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 import Button from "./ui/Button";
 import { PINATA_GATEWAY } from "@/lib/contracts";
 
@@ -30,7 +31,18 @@ export default function SkillCard({
   onConnect,
   purchased = false,
 }: SkillCardProps) {
-  const mcpUri = `mcp://nexus/skills/${skill.id}`;
+  const [showConnect, setShowConnect] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const mcpEndpoint = `${supabaseUrl}/functions/v1/skill-mcp/${skill.id}`;
+  const fileUrl = `https://${PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`;
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+  };
 
   return (
     <motion.div
@@ -74,52 +86,134 @@ export default function SkillCard({
         <span className="text-[10px] font-mono text-fg-dim">USDC</span>
       </div>
 
-      <div className="flex gap-3">
-        {purchased ? (
-          <>
+      {purchased ? (
+        <div className="space-y-3">
+          {/* Primary actions */}
+          <div className="flex gap-2">
             <Button
               variant="primary"
               size="sm"
               className="flex-1"
-              onClick={() => onConnect?.(skill)}
+              onClick={() => setShowConnect(!showConnect)}
             >
-              CONNECT MCP
+              {showConnect ? "CLOSE" : "CONNECT TO AGENT"}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                window.open(
-                  `https://${PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`,
-                  "_blank"
-                );
-              }}
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex"
             >
-              .MD
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="primary"
-              size="sm"
-              className="flex-1"
-              onClick={() => onBuy?.(skill)}
+              <Button variant="ghost" size="sm">
+                ↓ .MD
+              </Button>
+            </a>
+          </div>
+
+          {/* Connect panel */}
+          {showConnect && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="border border-border bg-bg p-4 space-y-3"
             >
-              BUY SKILL
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(mcpUri);
-              }}
-            >
-              URI
-            </Button>
-          </>
-        )}
-      </div>
+              <p className="text-[10px] font-mono text-fg-dim tracking-wider">
+                [connect_options]
+              </p>
+
+              {/* MCP Endpoint for AI agents */}
+              <div>
+                <label className="text-[10px] font-mono text-fg-muted block mb-1">
+                  MCP ENDPOINT (for AI agents)
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    readOnly
+                    value={mcpEndpoint}
+                    className="flex-1 bg-bg-card border border-border px-2 py-1.5 text-[10px] font-mono text-fg truncate"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(mcpEndpoint, "mcp")}
+                  >
+                    {copied === "mcp" ? "✓" : "COPY"}
+                  </Button>
+                </div>
+                <p className="text-[9px] font-mono text-fg-dim mt-1">
+                  Add this URL to your agent's MCP config
+                </p>
+              </div>
+
+              {/* Direct file URL */}
+              <div>
+                <label className="text-[10px] font-mono text-fg-muted block mb-1">
+                  DIRECT FILE URL
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    readOnly
+                    value={fileUrl}
+                    className="flex-1 bg-bg-card border border-border px-2 py-1.5 text-[10px] font-mono text-fg truncate"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(fileUrl, "file")}
+                  >
+                    {copied === "file" ? "✓" : "COPY"}
+                  </Button>
+                </div>
+                <p className="text-[9px] font-mono text-fg-dim mt-1">
+                  Fetch this URL directly for the .md skill file
+                </p>
+              </div>
+
+              {/* Workspace connect buttons */}
+              <div className="border-t border-border pt-3">
+                <label className="text-[10px] font-mono text-fg-muted block mb-2">
+                  QUICK CONNECT
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {skill.modelTags.map((tag) => (
+                    <Button
+                      key={tag}
+                      variant="ghost"
+                      size="sm"
+                      className="text-[9px]"
+                      onClick={() => {
+                        copyToClipboard(mcpEndpoint, tag);
+                        onConnect?.(skill);
+                      }}
+                    >
+                      → {tag} WORKSPACE
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <Button
+            variant="primary"
+            size="sm"
+            className="flex-1"
+            onClick={() => onBuy?.(skill)}
+          >
+            BUY SKILL
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => copyToClipboard(`mcp://nexus/skills/${skill.id}`, "uri")}
+          >
+            {copied === "uri" ? "✓" : "URI"}
+          </Button>
+        </div>
+      )}
 
       {skill.creator?.walletAddress && (
         <div className="mt-4 pt-3 border-t border-border">

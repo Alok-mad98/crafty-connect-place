@@ -144,8 +144,30 @@ export default function ForgeModal() {
       const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
       const onchainId = parsed ? Number(parsed.args[0]) : undefined;
 
-      // TODO: Save skill metadata via edge function (skills API not yet migrated)
-      console.log("Skill minted onchain:", { ipfsCid, onchainId, txHash: receipt.hash });
+      // Save skill metadata to database
+      const saveRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            title: state.title,
+            description: state.description,
+            price: state.price,
+            modelTags: state.modelTags,
+            ipfsCid,
+            onchainId,
+            creatorWallet: await signer.getAddress(),
+            txHash: receipt.hash,
+          }),
+        }
+      );
+      if (!saveRes.ok) {
+        console.warn("Failed to save skill metadata:", await saveRes.text());
+      }
 
       setStatus("done");
     } catch (err) {

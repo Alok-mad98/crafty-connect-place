@@ -14,7 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      purchases: {
+        Row: {
+          buyer_wallet: string
+          created_at: string
+          id: string
+          skill_id: string
+          tx_hash: string | null
+        }
+        Insert: {
+          buyer_wallet: string
+          created_at?: string
+          id?: string
+          skill_id: string
+          tx_hash?: string | null
+        }
+        Update: {
+          buyer_wallet?: string
+          created_at?: string
+          id?: string
+          skill_id?: string
+          tx_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skills: {
+        Row: {
+          active: boolean
+          created_at: string
+          creator_wallet: string
+          description: string
+          id: string
+          ipfs_cid: string
+          model_tags: string[]
+          onchain_id: number | null
+          price: number
+          title: string
+          tx_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          creator_wallet: string
+          description: string
+          id?: string
+          ipfs_cid: string
+          model_tags?: string[]
+          onchain_id?: number | null
+          price: number
+          title: string
+          tx_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          creator_wallet?: string
+          description?: string
+          id?: string
+          ipfs_cid?: string
+          model_tags?: string[]
+          onchain_id?: number | null
+          price?: number
+          title?: string
+          tx_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
