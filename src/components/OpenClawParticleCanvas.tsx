@@ -137,12 +137,16 @@ export default function OpenClawParticleCanvas() {
       const eyeRadiusPx = leftEyeNorm.r * scaledW;
       const pupilRadiusPx = pupilR * scaledW;
 
-      // Sample body particles
+      // Sample body particles — crop to central region only (remove side structures)
       const newBody: Particle[] = [];
       const threshold = 180;
+      const cropLeft = Math.floor(iw * 0.18);
+      const cropRight = Math.floor(iw * 0.82);
+      const cropTop = 0;
+      const cropBottom = ih;
 
-      for (let iy = 0; iy < ih; iy += GRID) {
-        for (let ix = 0; ix < iw; ix += GRID) {
+      for (let iy = cropTop; iy < cropBottom; iy += GRID) {
+        for (let ix = cropLeft; ix < cropRight; ix += GRID) {
           const idx = (iy * iw + ix) * 4;
           const r = pixels[idx];
           const g = pixels[idx + 1];
