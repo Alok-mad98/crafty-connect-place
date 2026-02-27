@@ -6,12 +6,13 @@ import EyeParticleCanvas from "@/components/EyeParticleCanvas";
 interface HeroSectionProps {
   heroY: MotionValue<number>;
   heroOpacity: MotionValue<number>;
+  heroScale: MotionValue<number>;
 }
 
-export default function HeroSection({ heroY, heroOpacity }: HeroSectionProps) {
+export default function HeroSection({ heroY, heroOpacity, heroScale }: HeroSectionProps) {
   return (
     <motion.section
-      style={{ y: heroY, opacity: heroOpacity }}
+      style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
       className="relative min-h-screen flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-16 overflow-hidden"
     >
       <div className="absolute inset-0 pointer-events-auto z-0">
