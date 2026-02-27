@@ -11,7 +11,9 @@ import {
   CONTRACT_ADDRESS,
   USDC_ADDRESS,
 } from "@/lib/contracts";
-import { supabase } from "@/integrations/supabase/client";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
 
 export default function Vault() {
   const [skills, setSkills] = useState<SkillData[]>([]);
@@ -23,11 +25,12 @@ export default function Vault() {
 
   const fetchSkills = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("skills-api", {
-        method: "GET",
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/skills-api`, {
+        headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
       });
-      if (data?.skills) {
-        setSkills(data.skills);
+      if (res.ok) {
+        const data = await res.json();
+        setSkills(data.skills || []);
       }
     } catch (err) {
       console.error("Failed to fetch skills:", err);
@@ -42,10 +45,10 @@ export default function Vault() {
       const wallet = wallets[0].address?.toLowerCase();
       if (!wallet) return;
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api/purchases/${wallet}`,
+        `${SUPABASE_URL}/functions/v1/skills-api/purchases/${wallet}`,
         {
           headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
           },
         }
       );
@@ -89,11 +92,11 @@ export default function Vault() {
       const receipt = await buyTx.wait();
 
       // Record purchase in DB
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api/purchase`, {
+      await fetch(`${SUPABASE_URL}/functions/v1/skills-api/purchase`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
         },
         body: JSON.stringify({
           skillId: skill.id,
@@ -111,7 +114,7 @@ export default function Vault() {
   };
 
   const handleConnect = (skill: SkillData) => {
-    const mcpEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skill-mcp/${skill.id}`;
+    const mcpEndpoint = `${SUPABASE_URL}/functions/v1/skill-mcp/${skill.id}`;
     navigator.clipboard.writeText(mcpEndpoint);
     alert(`MCP endpoint copied!\n\n${mcpEndpoint}\n\nAdd this to your AI agent's MCP config.`);
   };
