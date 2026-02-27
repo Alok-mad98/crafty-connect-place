@@ -34,7 +34,7 @@ export default function SkillCard({
   const [showConnect, setShowConnect] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
   const mcpEndpoint = `${supabaseUrl}/functions/v1/skill-mcp/${skill.id}`;
   const fileUrl = `https://${PINATA_GATEWAY}/ipfs/${skill.ipfsCid}`;
 
