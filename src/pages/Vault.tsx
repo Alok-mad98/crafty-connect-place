@@ -10,8 +10,8 @@ import {
   ERC20_ABI,
   CONTRACT_ADDRESS,
   USDC_ADDRESS,
-  API_BASE,
 } from "@/lib/contracts";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Vault() {
   const [skills, setSkills] = useState<SkillData[]>([]);
@@ -23,10 +23,11 @@ export default function Vault() {
 
   const fetchSkills = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/skills`);
-      if (res.ok) {
-        const data = await res.json();
-        setSkills(data.skills || []);
+      const { data, error } = await supabase.functions.invoke("skills-api", {
+        method: "GET",
+      });
+      if (data?.skills) {
+        setSkills(data.skills);
       }
     } catch (err) {
       console.error("Failed to fetch skills:", err);
@@ -35,9 +36,37 @@ export default function Vault() {
     }
   }, []);
 
+  const fetchPurchases = useCallback(async () => {
+    if (!wallets[0]) return;
+    try {
+      const wallet = wallets[0].address?.toLowerCase();
+      if (!wallet) return;
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api/purchases/${wallet}`,
+        {
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPurchasedIds(new Set(data.purchasedSkillIds || []));
+      }
+    } catch (err) {
+      console.error("Failed to fetch purchases:", err);
+    }
+  }, [wallets]);
+
   useEffect(() => {
     fetchSkills();
   }, [fetchSkills]);
+
+  useEffect(() => {
+    if (authenticated && wallets[0]) {
+      fetchPurchases();
+    }
+  }, [authenticated, wallets, fetchPurchases]);
 
   const handleBuy = async (skill: SkillData) => {
     if (!authenticated || !wallets[0] || skill.onchainId == null) return;
@@ -58,11 +87,21 @@ export default function Vault() {
       const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
       const buyTx = await market.buySkill(skill.onchainId);
       const receipt = await buyTx.wait();
-      await fetch(`${API_BASE}/api/purchases`, {
+
+      // Record purchase in DB
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api/purchase`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skillId: skill.id, txHash: receipt.hash }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          skillId: skill.id,
+          buyerWallet: wallet.address?.toLowerCase(),
+          txHash: receipt.hash,
+        }),
       });
+
       setPurchasedIds((prev) => new Set(prev).add(skill.id));
     } catch (err) {
       console.error("Purchase failed:", err);
@@ -72,9 +111,9 @@ export default function Vault() {
   };
 
   const handleConnect = (skill: SkillData) => {
-    const mcpUri = `${API_BASE}/api/mcp/skill/${skill.id}`;
-    navigator.clipboard.writeText(mcpUri);
-    alert(`MCP endpoint copied!\n\n${mcpUri}\n\nAdd this to your AI agent's MCP config.`);
+    const mcpEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skill-mcp/${skill.id}`;
+    navigator.clipboard.writeText(mcpEndpoint);
+    alert(`MCP endpoint copied!\n\n${mcpEndpoint}\n\nAdd this to your AI agent's MCP config.`);
   };
 
   return (
