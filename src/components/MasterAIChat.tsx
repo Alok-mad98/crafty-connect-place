@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { API_BASE } from "@/lib/contracts";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
 
 interface Message {
   role: "user" | "assistant";
@@ -14,13 +17,16 @@ export default function MasterAIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "I am the Nexus Orchestrator. Need help integrating a skill?",
+      content: "I am the Nexus Orchestrator. I can help you integrate skills, manage your agent wallet, or forge new skills. What do you need?",
     },
   ]);
   const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [agentWallet, setAgentWallet] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -30,73 +36,71 @@ export default function MasterAIChat() {
   useEffect(() => { if (isOpen) inputRef.current?.focus(); }, [isOpen]);
 
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", content: input.trim() };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
+    const conversationHistory = messages.filter((m) => m.content);
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setIsStreaming(true);
+    setIsLoading(true);
 
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const userWallet = wallets[0]?.address || null;
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/cdp-agent/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          message: input.trim(),
+          userWallet,
+          conversationHistory: conversationHistory.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
-      if (!res.ok || !res.body) throw new Error("Chat request failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Request failed (${res.status})`);
+      }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      const data = await res.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const text = decoder.decode(value);
-        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
-
-        for (const line of lines) {
-          const data = line.slice(6);
-          if (data === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.content || parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = { ...last, content: last.content + content };
-                }
-                return updated;
-              });
-            }
-          } catch {
-            // Skip
-          }
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant") {
+          updated[updated.length - 1] = { ...last, content: data.response };
         }
+        return updated;
+      });
+
+      if (data.walletAddress) {
+        setAgentWallet(data.walletAddress);
       }
     } catch (err) {
       console.error("Chat error:", err);
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
-        if (last?.role === "assistant" && !last.content) {
-          updated[updated.length - 1] = { ...last, content: "Sorry, I encountered an error. Please try again." };
+        if (last?.role === "assistant") {
+          updated[updated.length - 1] = {
+            ...last,
+            content: `Error: ${err instanceof Error ? err.message : "Something went wrong"}. Try again.`,
+          };
         }
         return updated;
       });
     } finally {
-      setIsStreaming(false);
+      setIsLoading(false);
     }
-  }, [input, isStreaming, messages]);
+  }, [input, isLoading, messages, wallets]);
 
   return (
     <>
@@ -123,12 +127,17 @@ export default function MasterAIChat() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-bg-card border border-border flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-[360px] h-[520px] bg-bg-card border border-border flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div>
                 <p className="font-mono text-[10px] tracking-widest text-fg-dim">[master_ai]</p>
                 <h3 className="text-sm font-medium text-fg">Nexus Orchestrator</h3>
+                {agentWallet && (
+                  <p className="font-mono text-[8px] text-success/70 mt-0.5">
+                    wallet: {agentWallet.slice(0, 6)}...{agentWallet.slice(-4)}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -148,7 +157,7 @@ export default function MasterAIChat() {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] px-3 py-2 text-xs font-mono leading-relaxed ${
+                    className={`max-w-[85%] px-3 py-2 text-xs font-mono leading-relaxed whitespace-pre-wrap ${
                       msg.role === "user"
                         ? "bg-fg-ghost text-fg border border-border"
                         : "text-fg-muted"
@@ -167,6 +176,16 @@ export default function MasterAIChat() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Status bar */}
+            {authenticated && (
+              <div className="px-4 py-1.5 border-t border-border/50 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-success/60" />
+                <span className="font-mono text-[8px] text-fg-dim">
+                  connected · {wallets[0]?.address?.slice(0, 6)}...{wallets[0]?.address?.slice(-4)}
+                </span>
+              </div>
+            )}
+
             <div className="px-4 py-3 border-t border-border">
               <div className="flex items-center gap-2">
                 <input
@@ -175,12 +194,12 @@ export default function MasterAIChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder="Ask about skills..."
+                  placeholder={authenticated ? "Ask the Orchestrator..." : "Connect wallet to chat..."}
                   className="flex-1 bg-transparent border border-border px-3 py-2 text-xs text-fg font-mono placeholder:text-fg-dim focus:outline-none focus:border-border-hover transition-colors"
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!input.trim() || isStreaming}
+                  disabled={!input.trim() || isLoading}
                   className="px-3 py-2 border border-border text-fg-muted hover:text-fg hover:border-border-hover font-mono text-[10px] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   →
