@@ -186,20 +186,17 @@ function buildShape(w: number, h: number) {
         alpha = dist > 0.82 ? 0.4 + Math.random() * 0.2 : 0.12 + Math.random() * 0.08;
       }
 
-      // Only keep lobster shape particles, skip background
-      if (group !== "bg") {
-        particles.push({
-          x: x + (Math.random() - 0.5) * w * 0.5,
-          y: y + (Math.random() - 0.5) * h * 0.5,
-          baseX: x, baseY: y,
-          targetX: x, targetY: y,
-          vx: 0, vy: 0,
-          friction: 0.82 + Math.random() * 0.06,
-          ease: 0.06 + Math.random() * 0.04,
-          char: CHARS[Math.floor(Math.random() * CHARS.length)],
-          alpha, group,
-        });
-      }
+      particles.push({
+        x: x + (Math.random() - 0.5) * w * 0.5,
+        y: y + (Math.random() - 0.5) * h * 0.5,
+        baseX: x, baseY: y,
+        targetX: x, targetY: y,
+        vx: 0, vy: 0,
+        friction: 0.82 + Math.random() * 0.06,
+        ease: 0.06 + Math.random() * 0.04,
+        char: CHARS[Math.floor(Math.random() * CHARS.length)],
+        alpha, group,
+      });
     }
   }
 
