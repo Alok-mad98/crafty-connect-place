@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_config: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      agent_memory: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          memory_type: string
+          user_wallet: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          memory_type?: string
+          user_wallet: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          memory_type?: string
+          user_wallet?: string
+        }
+        Relationships: []
+      }
+      agent_wallets: {
+        Row: {
+          agent_wallet_address: string
+          agent_wallet_id: string
+          created_at: string
+          id: string
+          network: string
+          user_wallet: string
+        }
+        Insert: {
+          agent_wallet_address: string
+          agent_wallet_id: string
+          created_at?: string
+          id?: string
+          network?: string
+          user_wallet: string
+        }
+        Update: {
+          agent_wallet_address?: string
+          agent_wallet_id?: string
+          created_at?: string
+          id?: string
+          network?: string
+          user_wallet?: string
+        }
+        Relationships: []
+      }
       purchases: {
         Row: {
           buyer_wallet: string
@@ -90,6 +162,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      twitter_mentions: {
+        Row: {
+          author_handle: string
+          author_id: string | null
+          created_at: string
+          id: string
+          processed_at: string | null
+          response_tweet_id: string | null
+          skill_id: string | null
+          status: string
+          text: string
+          tweet_id: string
+        }
+        Insert: {
+          author_handle: string
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          response_tweet_id?: string | null
+          skill_id?: string | null
+          status?: string
+          text: string
+          tweet_id: string
+        }
+        Update: {
+          author_handle?: string
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          response_tweet_id?: string | null
+          skill_id?: string | null
+          status?: string
+          text?: string
+          tweet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "twitter_mentions_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
