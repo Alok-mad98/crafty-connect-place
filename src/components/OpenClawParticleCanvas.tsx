@@ -140,8 +140,8 @@ export default function OpenClawParticleCanvas() {
       // Sample body particles — crop to central region only (remove side structures)
       const newBody: Particle[] = [];
       const threshold = 180;
-      const cropLeft = Math.floor(iw * 0.18);
-      const cropRight = Math.floor(iw * 0.82);
+      const cropLeft = Math.floor(iw * 0.22);
+      const cropRight = Math.floor(iw * 0.78);
       const cropTop = 0;
       const cropBottom = ih;
 
