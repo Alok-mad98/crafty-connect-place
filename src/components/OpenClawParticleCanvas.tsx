@@ -3,10 +3,15 @@
 import { useEffect, useRef, useCallback } from "react";
 
 /*
- * OpenClaw Logo Particle Canvas
- * – Round body with antennae, arms, legs
- * – Two small eyes that blink & track the cursor
- * – Number-based particles, same aesthetic as EyeParticleCanvas
+ * OpenClaw Particle Canvas
+ * Lobster-crab character with:
+ * – Round head with ear bumps
+ * – One bent antenna with ball tip
+ * – Two big dark eyes that blink & track cursor
+ * – Body/torso
+ * – Two large claws (pincers)
+ * – 6 legs underneath
+ * – Segmented tail curving right
  */
 
 interface Particle {
@@ -28,7 +33,7 @@ interface Particle {
 type BlinkState = "OPEN" | "CLOSING" | "CLOSED" | "OPENING";
 
 const CHARS = "0123456789".split("");
-const SPACING = 13;
+const SPACING = 12;
 
 /* ── Shape helpers ── */
 
@@ -54,20 +59,23 @@ function distToSegment(px: number, py: number, x1: number, y1: number, x2: numbe
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
+function isNearLine(px: number, py: number, x1: number, y1: number, x2: number, y2: number, thick: number): boolean {
+  return distToSegment(px, py, x1, y1, x2, y2) < thick;
+}
+
 function isNearCurve(
   px: number, py: number,
   x0: number, y0: number,
-  cx: number, cy: number,
+  cpx: number, cpy: number,
   x1: number, y1: number,
   thickness: number
 ): boolean {
-  // Approximate quadratic bezier with 5 segments
   let prevX = x0, prevY = y0;
-  for (let i = 1; i <= 5; i++) {
-    const t = i / 5;
+  for (let i = 1; i <= 8; i++) {
+    const t = i / 8;
     const invT = 1 - t;
-    const bx = invT * invT * x0 + 2 * invT * t * cx + t * t * x1;
-    const by = invT * invT * y0 + 2 * invT * t * cy + t * t * y1;
+    const bx = invT * invT * x0 + 2 * invT * t * cpx + t * t * x1;
+    const by = invT * invT * y0 + 2 * invT * t * cpy + t * t * y1;
     if (distToSegment(px, py, prevX, prevY, bx, by) < thickness) return true;
     prevX = bx;
     prevY = by;
@@ -75,36 +83,82 @@ function isNearCurve(
   return false;
 }
 
-/* ── Build OpenClaw shape ── */
+/* ── Claw/pincer shape ── */
+function isInsideClaw(
+  px: number, py: number,
+  baseX: number, baseY: number,
+  scale: number,
+  flipX: boolean
+): boolean {
+  const f = flipX ? -1 : 1;
+  // Upper pincer (arm extending out)
+  const armCx = baseX + f * 45 * scale;
+  const armCy = baseY;
+  if (isInsideEllipse(px, py, armCx, armCy, 30 * scale, 18 * scale)) return true;
+  // Upper jaw
+  const jawTopCx = armCx + f * 28 * scale;
+  const jawTopCy = armCy - 12 * scale;
+  if (isInsideEllipse(px, py, jawTopCx, jawTopCy, 22 * scale, 8 * scale)) return true;
+  // Lower jaw
+  const jawBotCx = armCx + f * 28 * scale;
+  const jawBotCy = armCy + 10 * scale;
+  if (isInsideEllipse(px, py, jawBotCx, jawBotCy, 20 * scale, 7 * scale)) return true;
+  return false;
+}
+
+/* ── Build shape ── */
 function buildClawShape(width: number, height: number) {
   const cx = width / 2;
   const cy = height / 2;
+  const scale = Math.min(width, height) / 650;
 
-  // Scale based on canvas size
-  const scale = Math.min(width, height) / 600;
-  const bodyR = 110 * scale;
+  // HEAD — wide round, slightly flat on top
+  const headRx = 85 * scale;
+  const headRy = 70 * scale;
+  const headY = cy - 45 * scale;
 
-  // Eye positions & sizes
-  const eyeR = 12 * scale;
-  const eyeOffX = 28 * scale;
-  const eyeY = cy - 18 * scale;
-  const pupilR = 6 * scale;
+  // EAR BUMPS — on sides of head
+  const earR = 22 * scale;
+  const earOffX = headRx * 0.82;
+  const earY = headY - 15 * scale;
 
-  // Antenna
-  const antennaLen = 50 * scale;
-  const antennaSpread = 25 * scale;
-  const antennaThick = 6 * scale;
+  // EYES — big round dark with white pupil highlight
+  const eyeR = 18 * scale;
+  const eyeOffX = 30 * scale;
+  const eyeY = headY + 5 * scale;
+  const pupilR = 8 * scale;
 
-  // Arms (small round bumps on sides)
-  const armR = 28 * scale;
-  const armOffX = bodyR * 0.85;
-  const armY = cy + 10 * scale;
+  // ANTENNA — one bent antenna on top-right with ball
+  const antBaseX = cx + 15 * scale;
+  const antBaseY = headY - headRy * 0.85;
+  const antMidX = cx + 30 * scale;
+  const antMidY = antBaseY - 40 * scale;
+  const antTopX = cx + 45 * scale;
+  const antTopY = antMidY - 25 * scale;
+  const antBallR = 10 * scale;
+  const antThick = 5 * scale;
 
-  // Legs
-  const legW = 10 * scale;
-  const legH = 30 * scale;
-  const legSpread = 30 * scale;
-  const legTop = cy + bodyR * 0.75;
+  // BODY/TORSO — below head, slightly narrower
+  const bodyRx = 55 * scale;
+  const bodyRy = 50 * scale;
+  const bodyY = cy + 35 * scale;
+
+  // CLAWS — two big pincers
+  const clawLBaseX = cx - headRx * 0.6;
+  const clawLBaseY = cy + 10 * scale;
+  const clawRBaseX = cx + headRx * 0.6;
+  const clawRBaseY = cy + 10 * scale;
+
+  // LEGS — 6 legs (3 per side), angled downward
+  const legThick = 5 * scale;
+  const legLen = 35 * scale;
+  const legStartY = bodyY;
+  const legSpacingY = 18 * scale;
+
+  // TAIL — segmented, curving to the right
+  const tailSegments = 4;
+  const tailSegRx = 22 * scale;
+  const tailSegRy = 12 * scale;
 
   const particles: Particle[] = [];
   const cols = Math.ceil(width / SPACING);
@@ -112,11 +166,13 @@ function buildClawShape(width: number, height: number) {
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const x = col * SPACING + (Math.random() - 0.5) * 3;
-      const y = row * SPACING + (Math.random() - 0.5) * 3;
+      const x = col * SPACING + (Math.random() - 0.5) * 2;
+      const y = row * SPACING + (Math.random() - 0.5) * 2;
 
       let group: Particle["group"] = "bg";
-      let alpha = 0.06 + Math.random() * 0.04;
+      let alpha = 0.05 + Math.random() * 0.04;
+
+      // ── EYES (check first for layering priority) ──
 
       // Left eye pupil
       if (isInsideCircle(x, y, cx - eyeOffX, eyeY, pupilR)) {
@@ -128,73 +184,117 @@ function buildClawShape(width: number, height: number) {
         group = "eye-right";
         alpha = 0.85 + Math.random() * 0.15;
       }
-      // Left eye socket (iris ring)
+      // Left eye socket
       else if (isInsideCircle(x, y, cx - eyeOffX, eyeY, eyeR)) {
         group = "eye-left";
-        alpha = 0.5 + Math.random() * 0.3;
+        alpha = 0.45 + Math.random() * 0.3;
       }
       // Right eye socket
       else if (isInsideCircle(x, y, cx + eyeOffX, eyeY, eyeR)) {
         group = "eye-right";
-        alpha = 0.5 + Math.random() * 0.3;
+        alpha = 0.45 + Math.random() * 0.3;
       }
-      // Left antenna (curved line going up-left)
+
+      // ── ANTENNA — bent line with ball tip ──
+      else if (isInsideCircle(x, y, antTopX, antTopY, antBallR)) {
+        group = "antenna";
+        alpha = 0.7 + Math.random() * 0.2;
+      }
       else if (
-        isNearCurve(
-          x, y,
-          cx - antennaSpread * 0.5, cy - bodyR * 0.85,
-          cx - antennaSpread * 1.2, cy - bodyR - antennaLen * 0.6,
-          cx - antennaSpread, cy - bodyR - antennaLen,
-          antennaThick
-        )
+        isNearLine(x, y, antBaseX, antBaseY, antMidX, antMidY, antThick) ||
+        isNearLine(x, y, antMidX, antMidY, antTopX, antTopY, antThick)
       ) {
         group = "antenna";
-        alpha = 0.6 + Math.random() * 0.2;
+        alpha = 0.55 + Math.random() * 0.2;
       }
-      // Right antenna
-      else if (
-        isNearCurve(
-          x, y,
-          cx + antennaSpread * 0.5, cy - bodyR * 0.85,
-          cx + antennaSpread * 1.2, cy - bodyR - antennaLen * 0.6,
-          cx + antennaSpread, cy - bodyR - antennaLen,
-          antennaThick
-        )
-      ) {
-        group = "antenna";
-        alpha = 0.6 + Math.random() * 0.2;
-      }
-      // Left arm
-      else if (isInsideEllipse(x, y, cx - armOffX, armY, armR, armR * 0.8)) {
-        group = "arm";
-        alpha = 0.4 + Math.random() * 0.25;
-      }
-      // Right arm
-      else if (isInsideEllipse(x, y, cx + armOffX, armY, armR, armR * 0.8)) {
-        group = "arm";
-        alpha = 0.4 + Math.random() * 0.25;
-      }
-      // Legs (3 small rectangles)
-      else if (
-        y > legTop && y < legTop + legH &&
-        (
-          (Math.abs(x - (cx - legSpread)) < legW) ||
-          (Math.abs(x - cx) < legW) ||
-          (Math.abs(x - (cx + legSpread)) < legW)
-        )
-      ) {
-        group = "leg";
-        alpha = 0.35 + Math.random() * 0.2;
-      }
-      // Body (main round shape, slightly taller than wide)
-      else if (isInsideEllipse(x, y, cx, cy, bodyR, bodyR * 1.15)) {
+
+      // ── EAR BUMPS ──
+      else if (isInsideCircle(x, y, cx - earOffX, earY, earR)) {
         group = "body";
-        // Denser near edges for outline effect
-        const dist = Math.hypot((x - cx) / bodyR, (y - cy) / (bodyR * 1.15));
-        if (dist > 0.85) {
-          alpha = 0.5 + Math.random() * 0.3;
-        } else {
-          alpha = 0.2 + Math.random() * 0.15;
+        alpha = 0.4 + Math.random() * 0.25;
+      }
+      else if (isInsideCircle(x, y, cx + earOffX, earY, earR)) {
+        group = "body";
+        alpha = 0.4 + Math.random() * 0.25;
+      }
+
+      // ── CLAWS ──
+      else if (isInsideClaw(x, y, clawLBaseX, clawLBaseY, scale, false)) {
+        group = "arm";
+        alpha = 0.45 + Math.random() * 0.25;
+      }
+      else if (isInsideClaw(x, y, clawRBaseX, clawRBaseY, scale, true)) {
+        group = "arm";
+        alpha = 0.45 + Math.random() * 0.25;
+      }
+
+      // ── LEGS — 3 per side, angled outward ──
+      else {
+        let isLeg = false;
+        for (let li = 0; li < 3; li++) {
+          const ly = legStartY + li * legSpacingY;
+          // Left legs (angled down-left)
+          const lx1 = cx - bodyRx * 0.7;
+          const ly1 = ly;
+          const lx2 = lx1 - legLen;
+          const ly2 = ly + legLen * 0.5;
+          if (isNearLine(x, y, lx1, ly1, lx2, ly2, legThick)) {
+            isLeg = true;
+            break;
+          }
+          // Right legs (angled down-right)
+          const rx1 = cx + bodyRx * 0.7;
+          const ry1 = ly;
+          const rx2 = rx1 + legLen;
+          const ry2 = ly + legLen * 0.5;
+          if (isNearLine(x, y, rx1, ry1, rx2, ry2, legThick)) {
+            isLeg = true;
+            break;
+          }
+        }
+        if (isLeg) {
+          group = "leg";
+          alpha = 0.35 + Math.random() * 0.2;
+        }
+
+        // ── TAIL — segmented curve to the right ──
+        else {
+          let isTail = false;
+          for (let si = 0; si < tailSegments; si++) {
+            const segX = cx + (si + 1) * 20 * scale;
+            const segY = bodyY + bodyRy * 0.6 + si * 14 * scale;
+            const shrink = 1 - si * 0.12;
+            if (isInsideEllipse(x, y, segX, segY, tailSegRx * shrink, tailSegRy * shrink)) {
+              isTail = true;
+              break;
+            }
+          }
+          if (isTail) {
+            group = "body";
+            alpha = 0.35 + Math.random() * 0.2;
+          }
+
+          // ── HEAD ──
+          else if (isInsideEllipse(x, y, cx, headY, headRx, headRy)) {
+            group = "body";
+            const dist = Math.hypot((x - cx) / headRx, (y - headY) / headRy);
+            if (dist > 0.82) {
+              alpha = 0.5 + Math.random() * 0.3; // edge outline
+            } else {
+              alpha = 0.18 + Math.random() * 0.12; // inner fill
+            }
+          }
+
+          // ── BODY/TORSO ──
+          else if (isInsideEllipse(x, y, cx, bodyY, bodyRx, bodyRy)) {
+            group = "body";
+            const dist = Math.hypot((x - cx) / bodyRx, (y - bodyY) / bodyRy);
+            if (dist > 0.82) {
+              alpha = 0.45 + Math.random() * 0.25;
+            } else {
+              alpha = 0.15 + Math.random() * 0.1;
+            }
+          }
         }
       }
 
@@ -423,7 +523,6 @@ export default function OpenClawParticleCanvas() {
 
         // Draw
         let drawAlpha = p.alpha;
-        // Fade eyes during blink
         if ((p.group === "eye-left" || p.group === "eye-right") && blinkT > 0.7) {
           drawAlpha *= 1 - (blinkT - 0.7) / 0.3;
         }
