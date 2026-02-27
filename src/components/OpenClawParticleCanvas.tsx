@@ -1,552 +1,426 @@
-"use client";
-
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 /*
  * OpenClaw Particle Canvas
- * Lobster-crab character with:
- * – Round head with ear bumps
- * – One bent antenna with ball tip
- * – Two big dark eyes that blink & track cursor
- * – Body/torso
- * – Two large claws (pincers)
- * – 6 legs underneath
- * – Segmented tail curving right
+ * Image-sampled particle lobster with spring physics,
+ * eye tracking, blinking, cursor disturbance, idle float.
  */
 
 interface Particle {
   x: number;
   y: number;
-  baseX: number;
-  baseY: number;
   targetX: number;
   targetY: number;
+  baseTargetX: number;
+  baseTargetY: number;
   vx: number;
   vy: number;
-  friction: number;
-  ease: number;
   char: string;
   alpha: number;
-  group: "body" | "eye-left" | "eye-right" | "antenna" | "arm" | "leg" | "bg";
+}
+
+interface EyeParticle {
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  openX: number;
+  openY: number;
+  closedX: number;
+  closedY: number;
+  vx: number;
+  vy: number;
+  char: string;
+  isPupil: boolean;
 }
 
 type BlinkState = "OPEN" | "CLOSING" | "CLOSED" | "OPENING";
 
-const CHARS = "0123456789".split("");
-const SPACING = 12;
+const CHARS = ["0", "1", "2", "3", "4", "5"];
+const SPRING = 0.08;
+const FRICTION = 0.88;
+const GRID = 7;
 
-/* ── Shape helpers ── */
-
-function isInsideCircle(x: number, y: number, cx: number, cy: number, r: number): boolean {
-  const dx = x - cx;
-  const dy = y - cy;
-  return dx * dx + dy * dy < r * r;
-}
-
-function isInsideEllipse(x: number, y: number, cx: number, cy: number, rx: number, ry: number): boolean {
-  const nx = (x - cx) / rx;
-  const ny = (y - cy) / ry;
-  return nx * nx + ny * ny < 1;
-}
-
-function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
-  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-}
-
-function isNearLine(px: number, py: number, x1: number, y1: number, x2: number, y2: number, thick: number): boolean {
-  return distToSegment(px, py, x1, y1, x2, y2) < thick;
-}
-
-function isNearCurve(
-  px: number, py: number,
-  x0: number, y0: number,
-  cpx: number, cpy: number,
-  x1: number, y1: number,
-  thickness: number
-): boolean {
-  let prevX = x0, prevY = y0;
-  for (let i = 1; i <= 8; i++) {
-    const t = i / 8;
-    const invT = 1 - t;
-    const bx = invT * invT * x0 + 2 * invT * t * cpx + t * t * x1;
-    const by = invT * invT * y0 + 2 * invT * t * cpy + t * t * y1;
-    if (distToSegment(px, py, prevX, prevY, bx, by) < thickness) return true;
-    prevX = bx;
-    prevY = by;
-  }
-  return false;
-}
-
-/* ── Claw/pincer shape ── */
-function isInsideClaw(
-  px: number, py: number,
-  baseX: number, baseY: number,
-  scale: number,
-  flipX: boolean
-): boolean {
-  const f = flipX ? -1 : 1;
-  // Upper pincer (arm extending out)
-  const armCx = baseX + f * 45 * scale;
-  const armCy = baseY;
-  if (isInsideEllipse(px, py, armCx, armCy, 30 * scale, 18 * scale)) return true;
-  // Upper jaw
-  const jawTopCx = armCx + f * 28 * scale;
-  const jawTopCy = armCy - 12 * scale;
-  if (isInsideEllipse(px, py, jawTopCx, jawTopCy, 22 * scale, 8 * scale)) return true;
-  // Lower jaw
-  const jawBotCx = armCx + f * 28 * scale;
-  const jawBotCy = armCy + 10 * scale;
-  if (isInsideEllipse(px, py, jawBotCx, jawBotCy, 20 * scale, 7 * scale)) return true;
-  return false;
-}
-
-/* ── Build shape ── */
-function buildClawShape(width: number, height: number) {
-  const cx = width / 2;
-  const cy = height / 2;
-  const scale = Math.min(width, height) / 650;
-
-  // HEAD — wide round, slightly flat on top
-  const headRx = 85 * scale;
-  const headRy = 70 * scale;
-  const headY = cy - 45 * scale;
-
-  // EAR BUMPS — on sides of head
-  const earR = 22 * scale;
-  const earOffX = headRx * 0.82;
-  const earY = headY - 15 * scale;
-
-  // EYES — big round dark with white pupil highlight
-  const eyeR = 18 * scale;
-  const eyeOffX = 30 * scale;
-  const eyeY = headY + 5 * scale;
-  const pupilR = 8 * scale;
-
-  // ANTENNA — one bent antenna on top-right with ball
-  const antBaseX = cx + 15 * scale;
-  const antBaseY = headY - headRy * 0.85;
-  const antMidX = cx + 30 * scale;
-  const antMidY = antBaseY - 40 * scale;
-  const antTopX = cx + 45 * scale;
-  const antTopY = antMidY - 25 * scale;
-  const antBallR = 10 * scale;
-  const antThick = 5 * scale;
-
-  // BODY/TORSO — below head, slightly narrower
-  const bodyRx = 55 * scale;
-  const bodyRy = 50 * scale;
-  const bodyY = cy + 35 * scale;
-
-  // CLAWS — two big pincers
-  const clawLBaseX = cx - headRx * 0.6;
-  const clawLBaseY = cy + 10 * scale;
-  const clawRBaseX = cx + headRx * 0.6;
-  const clawRBaseY = cy + 10 * scale;
-
-  // LEGS — 6 legs (3 per side), angled downward
-  const legThick = 5 * scale;
-  const legLen = 35 * scale;
-  const legStartY = bodyY;
-  const legSpacingY = 18 * scale;
-
-  // TAIL — segmented, curving to the right
-  const tailSegments = 4;
-  const tailSegRx = 22 * scale;
-  const tailSegRy = 12 * scale;
-
-  const particles: Particle[] = [];
-  const cols = Math.ceil(width / SPACING);
-  const rows = Math.ceil(height / SPACING);
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x = col * SPACING + (Math.random() - 0.5) * 2;
-      const y = row * SPACING + (Math.random() - 0.5) * 2;
-
-      let group: Particle["group"] = "bg";
-      let alpha = 0.05 + Math.random() * 0.04;
-
-      // ── EYES (check first for layering priority) ──
-
-      // Left eye pupil
-      if (isInsideCircle(x, y, cx - eyeOffX, eyeY, pupilR)) {
-        group = "eye-left";
-        alpha = 0.85 + Math.random() * 0.15;
-      }
-      // Right eye pupil
-      else if (isInsideCircle(x, y, cx + eyeOffX, eyeY, pupilR)) {
-        group = "eye-right";
-        alpha = 0.85 + Math.random() * 0.15;
-      }
-      // Left eye socket
-      else if (isInsideCircle(x, y, cx - eyeOffX, eyeY, eyeR)) {
-        group = "eye-left";
-        alpha = 0.45 + Math.random() * 0.3;
-      }
-      // Right eye socket
-      else if (isInsideCircle(x, y, cx + eyeOffX, eyeY, eyeR)) {
-        group = "eye-right";
-        alpha = 0.45 + Math.random() * 0.3;
-      }
-
-      // ── ANTENNA — bent line with ball tip ──
-      else if (isInsideCircle(x, y, antTopX, antTopY, antBallR)) {
-        group = "antenna";
-        alpha = 0.7 + Math.random() * 0.2;
-      }
-      else if (
-        isNearLine(x, y, antBaseX, antBaseY, antMidX, antMidY, antThick) ||
-        isNearLine(x, y, antMidX, antMidY, antTopX, antTopY, antThick)
-      ) {
-        group = "antenna";
-        alpha = 0.55 + Math.random() * 0.2;
-      }
-
-      // ── EAR BUMPS ──
-      else if (isInsideCircle(x, y, cx - earOffX, earY, earR)) {
-        group = "body";
-        alpha = 0.4 + Math.random() * 0.25;
-      }
-      else if (isInsideCircle(x, y, cx + earOffX, earY, earR)) {
-        group = "body";
-        alpha = 0.4 + Math.random() * 0.25;
-      }
-
-      // ── CLAWS ──
-      else if (isInsideClaw(x, y, clawLBaseX, clawLBaseY, scale, false)) {
-        group = "arm";
-        alpha = 0.45 + Math.random() * 0.25;
-      }
-      else if (isInsideClaw(x, y, clawRBaseX, clawRBaseY, scale, true)) {
-        group = "arm";
-        alpha = 0.45 + Math.random() * 0.25;
-      }
-
-      // ── LEGS — 3 per side, angled outward ──
-      else {
-        let isLeg = false;
-        for (let li = 0; li < 3; li++) {
-          const ly = legStartY + li * legSpacingY;
-          // Left legs (angled down-left)
-          const lx1 = cx - bodyRx * 0.7;
-          const ly1 = ly;
-          const lx2 = lx1 - legLen;
-          const ly2 = ly + legLen * 0.5;
-          if (isNearLine(x, y, lx1, ly1, lx2, ly2, legThick)) {
-            isLeg = true;
-            break;
-          }
-          // Right legs (angled down-right)
-          const rx1 = cx + bodyRx * 0.7;
-          const ry1 = ly;
-          const rx2 = rx1 + legLen;
-          const ry2 = ly + legLen * 0.5;
-          if (isNearLine(x, y, rx1, ry1, rx2, ry2, legThick)) {
-            isLeg = true;
-            break;
-          }
-        }
-        if (isLeg) {
-          group = "leg";
-          alpha = 0.35 + Math.random() * 0.2;
-        }
-
-        // ── TAIL — segmented curve to the right ──
-        else {
-          let isTail = false;
-          for (let si = 0; si < tailSegments; si++) {
-            const segX = cx + (si + 1) * 20 * scale;
-            const segY = bodyY + bodyRy * 0.6 + si * 14 * scale;
-            const shrink = 1 - si * 0.12;
-            if (isInsideEllipse(x, y, segX, segY, tailSegRx * shrink, tailSegRy * shrink)) {
-              isTail = true;
-              break;
-            }
-          }
-          if (isTail) {
-            group = "body";
-            alpha = 0.35 + Math.random() * 0.2;
-          }
-
-          // ── HEAD ──
-          else if (isInsideEllipse(x, y, cx, headY, headRx, headRy)) {
-            group = "body";
-            const dist = Math.hypot((x - cx) / headRx, (y - headY) / headRy);
-            if (dist > 0.82) {
-              alpha = 0.5 + Math.random() * 0.3; // edge outline
-            } else {
-              alpha = 0.18 + Math.random() * 0.12; // inner fill
-            }
-          }
-
-          // ── BODY/TORSO ──
-          else if (isInsideEllipse(x, y, cx, bodyY, bodyRx, bodyRy)) {
-            group = "body";
-            const dist = Math.hypot((x - cx) / bodyRx, (y - bodyY) / bodyRy);
-            if (dist > 0.82) {
-              alpha = 0.45 + Math.random() * 0.25;
-            } else {
-              alpha = 0.15 + Math.random() * 0.1;
-            }
-          }
-        }
-      }
-
-      particles.push({
-        x: x + (Math.random() - 0.5) * width * 0.6,
-        y: y + (Math.random() - 0.5) * height * 0.6,
-        baseX: x,
-        baseY: y,
-        targetX: x,
-        targetY: y,
-        vx: 0,
-        vy: 0,
-        friction: 0.82 + Math.random() * 0.06,
-        ease: 0.06 + Math.random() * 0.04,
-        char: CHARS[Math.floor(Math.random() * CHARS.length)],
-        alpha,
-        group,
-      });
-    }
-  }
-
-  return { particles, eyeOffX, eyeY, eyeR, pupilR };
+function randomChar() {
+  return CHARS[Math.floor(Math.random() * CHARS.length)];
 }
 
 export default function OpenClawParticleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef(0);
-  const mouseRef = useRef({ x: -9999, y: -9999 });
-  const particlesRef = useRef<Particle[]>([]);
-  const blinkStateRef = useRef<BlinkState>("OPEN");
-  const blinkProgressRef = useRef(0);
-  const timeRef = useRef(0);
-  const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initializedRef = useRef(false);
-  const sizeRef = useRef({ w: 0, h: 0 });
-  const eyeMetaRef = useRef({ eyeOffX: 0, eyeY: 0, eyeR: 0, pupilR: 0 });
-
-  const init = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
-
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const rect = container.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    sizeRef.current = { w, h };
-
-    const { particles, eyeOffX, eyeY, eyeR, pupilR } = buildClawShape(w, h);
-    particlesRef.current = particles;
-    eyeMetaRef.current = { eyeOffX, eyeY, eyeR, pupilR };
-    initializedRef.current = true;
-  }, []);
 
   useEffect(() => {
-    init();
-
-    const container = containerRef.current;
     const canvas = canvasRef.current;
+    const container = containerRef.current;
     if (!canvas || !container) return;
-
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
+    let destroyed = false;
+
+    // State
+    const mouse = { x: -9999, y: -9999 };
+    let bodyParticles: Particle[] = [];
+    let leftEye: EyeParticle[] = [];
+    let rightEye: EyeParticle[] = [];
+    let blinkState: BlinkState = "OPEN";
+    let blinkT = 0; // 0 = open, 1 = closed
+    let time = 0;
+    let blinkTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Eye centers (in canvas coords, set after image load)
+    let leftEyeCenter = { x: 0, y: 0 };
+    let rightEyeCenter = { x: 0, y: 0 };
+
+    // ── Resize ──
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = container!.getBoundingClientRect();
+      canvas!.width = rect.width * dpr;
+      canvas!.height = rect.height * dpr;
+      canvas!.style.width = `${rect.width}px`;
+      canvas!.style.height = `${rect.height}px`;
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: rect.width, h: rect.height };
+    }
+
+    let size = resize();
+
+    // ── Load image and sample ──
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = "/lobster-ref.webp";
+
+    img.onload = () => {
+      if (destroyed) return;
+      sampleImage();
+    };
+
+    function sampleImage() {
+      const { w, h } = size;
+      // Offscreen canvas to read pixels
+      const oc = document.createElement("canvas");
+      const octx = oc.getContext("2d")!;
+      oc.width = img.naturalWidth;
+      oc.height = img.naturalHeight;
+      octx.drawImage(img, 0, 0);
+      const imgData = octx.getImageData(0, 0, oc.width, oc.height);
+      const pixels = imgData.data;
+      const iw = oc.width;
+      const ih = oc.height;
+
+      // Scale to fit canvas
+      const scale = Math.min(w / iw, h / ih) * 0.7;
+      const scaledW = iw * scale;
+      const scaledH = ih * scale;
+      const offsetX = (w - scaledW) / 2;
+      const offsetY = (h - scaledH) / 2;
+
+      // Detect eye regions heuristically:
+      // Eyes are roughly in upper-middle area of lobster. 
+      // We'll define eye circles in image-local coords and create separate particles.
+      // Approximate eye positions (relative to image, normalized 0-1):
+      const leftEyeNorm = { x: 0.41, y: 0.28, r: 0.035 };
+      const rightEyeNorm = { x: 0.59, y: 0.28, r: 0.035 };
+      const pupilR = 0.015;
+
+      leftEyeCenter = {
+        x: offsetX + leftEyeNorm.x * scaledW,
+        y: offsetY + leftEyeNorm.y * scaledH,
+      };
+      rightEyeCenter = {
+        x: offsetX + rightEyeNorm.x * scaledW,
+        y: offsetY + rightEyeNorm.y * scaledH,
+      };
+
+      const eyeRadiusPx = leftEyeNorm.r * scaledW;
+      const pupilRadiusPx = pupilR * scaledW;
+
+      // Sample body particles
+      const newBody: Particle[] = [];
+      const threshold = 180;
+
+      for (let iy = 0; iy < ih; iy += GRID) {
+        for (let ix = 0; ix < iw; ix += GRID) {
+          const idx = (iy * iw + ix) * 4;
+          const r = pixels[idx];
+          const g = pixels[idx + 1];
+          const b = pixels[idx + 2];
+          const a = pixels[idx + 3];
+          if (a < 30) continue;
+
+          const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (brightness > threshold) continue;
+
+          const tx = offsetX + ix * scale;
+          const ty = offsetY + iy * scale;
+
+          // Skip eye regions for body
+          const dxL = tx - leftEyeCenter.x;
+          const dyL = ty - leftEyeCenter.y;
+          const dxR = tx - rightEyeCenter.x;
+          const dyR = ty - rightEyeCenter.y;
+          if (dxL * dxL + dyL * dyL < eyeRadiusPx * eyeRadiusPx * 1.5) continue;
+          if (dxR * dxR + dyR * dyR < eyeRadiusPx * eyeRadiusPx * 1.5) continue;
+
+          // Alpha based on brightness
+          const alphaVal = 0.3 + (1 - brightness / threshold) * 0.7;
+
+          newBody.push({
+            x: tx + (Math.random() - 0.5) * w * 0.5,
+            y: ty + (Math.random() - 0.5) * h * 0.5,
+            targetX: tx,
+            targetY: ty,
+            baseTargetX: tx,
+            baseTargetY: ty,
+            vx: 0,
+            vy: 0,
+            char: randomChar(),
+            alpha: Math.min(alphaVal, 1),
+          });
+        }
+      }
+
+      bodyParticles = newBody;
+
+      // Create eye particles
+      leftEye = createEyeParticles(leftEyeCenter, eyeRadiusPx, pupilRadiusPx, w, h);
+      rightEye = createEyeParticles(rightEyeCenter, eyeRadiusPx, pupilRadiusPx, w, h);
+    }
+
+    function createEyeParticles(
+      center: { x: number; y: number },
+      radius: number,
+      pupilRadius: number,
+      _w: number,
+      _h: number
+    ): EyeParticle[] {
+      const particles: EyeParticle[] = [];
+      const step = 4;
+      // Open: filled circle
+      // Closed: thin horizontal line
+      for (let dy = -radius; dy <= radius; dy += step) {
+        for (let dx = -radius; dx <= radius; dx += step) {
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > radius) continue;
+
+          const openX = center.x + dx;
+          const openY = center.y + dy;
+          // Closed: squish Y to 0, keep X
+          const closedX = center.x + dx;
+          const closedY = center.y;
+
+          const isPupil = dist < pupilRadius;
+
+          particles.push({
+            x: openX + (Math.random() - 0.5) * 200,
+            y: openY + (Math.random() - 0.5) * 200,
+            targetX: openX,
+            targetY: openY,
+            openX,
+            openY,
+            closedX,
+            closedY,
+            vx: 0,
+            vy: 0,
+            char: randomChar(),
+            isPupil,
+          });
+        }
+      }
+      return particles;
+    }
+
+    // ── Events ──
     const onMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      mouseRef.current.x = e.clientX - rect.left;
-      mouseRef.current.y = e.clientY - rect.top;
+      const rect = container!.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
     };
     const onMouseLeave = () => {
-      mouseRef.current = { x: -9999, y: -9999 };
+      mouse.x = -9999;
+      mouse.y = -9999;
     };
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length > 0) {
-        const rect = container.getBoundingClientRect();
-        mouseRef.current.x = e.touches[0].clientX - rect.left;
-        mouseRef.current.y = e.touches[0].clientY - rect.top;
+        const rect = container!.getBoundingClientRect();
+        mouse.x = e.touches[0].clientX - rect.left;
+        mouse.y = e.touches[0].clientY - rect.top;
       }
     };
 
     container.addEventListener("mousemove", onMouseMove);
     container.addEventListener("mouseleave", onMouseLeave);
     container.addEventListener("touchmove", onTouchMove);
-    window.addEventListener("resize", init);
 
-    // Blink timer
-    const scheduleBlink = () => {
-      const delay = 2500 + Math.random() * 3500;
-      blinkTimerRef.current = setTimeout(() => {
-        if (blinkStateRef.current === "OPEN") {
-          blinkStateRef.current = "CLOSING";
-          blinkProgressRef.current = 0;
-        }
-        scheduleBlink();
-      }, delay);
+    const onResize = () => {
+      size = resize();
+      if (img.complete && img.naturalWidth > 0) sampleImage();
     };
+    window.addEventListener("resize", onResize);
+
+    // ── Blink timer ──
+    function scheduleBlink() {
+      const delay = 3000 + Math.random() * 2000;
+      blinkTimer = setTimeout(() => {
+        if (blinkState === "OPEN") blinkState = "CLOSING";
+        if (!destroyed) scheduleBlink();
+      }, delay);
+    }
     scheduleBlink();
 
-    const animate = () => {
-      if (!initializedRef.current) {
-        animRef.current = requestAnimationFrame(animate);
-        return;
-      }
+    // ── Animation ──
+    function animate() {
+      if (destroyed) return;
+      const { w, h } = size;
+      ctx!.clearRect(0, 0, w, h);
 
-      const { w, h } = sizeRef.current;
-      ctx.clearRect(0, 0, w, h);
+      time += 0.02;
+      const floatY = Math.sin(time) * 4;
+      const floatX = Math.cos(time * 0.6) * 1.5;
 
-      timeRef.current += 0.012;
-      const floatY = Math.sin(timeRef.current) * 5;
-      const floatX = Math.cos(timeRef.current * 0.6) * 2;
-
-      const centerX = w / 2;
-      const centerY = h / 2;
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
-
-      // Eye tracking
-      const { eyeOffX, eyeY } = eyeMetaRef.current;
-      const leftEyeCx = centerX - eyeOffX;
-      const rightEyeCx = centerX + eyeOffX;
-
-      const angleToCursorL = Math.atan2(my - eyeY, mx - leftEyeCx);
-      const angleToCursorR = Math.atan2(my - eyeY, mx - rightEyeCx);
-      const distL = Math.hypot(mx - leftEyeCx, my - eyeY);
-      const distR = Math.hypot(mx - rightEyeCx, my - eyeY);
-      const maxOffset = 8;
-      const pupilOffLX = Math.cos(angleToCursorL) * Math.min(distL / 300, 1) * maxOffset;
-      const pupilOffLY = Math.sin(angleToCursorL) * Math.min(distL / 300, 1) * maxOffset;
-      const pupilOffRX = Math.cos(angleToCursorR) * Math.min(distR / 300, 1) * maxOffset;
-      const pupilOffRY = Math.sin(angleToCursorR) * Math.min(distR / 300, 1) * maxOffset;
-
-      // Blink state machine
-      const blinkSpeed = 0.1;
-      switch (blinkStateRef.current) {
+      // Blink state machine (180ms total, 60ms closed)
+      const blinkSpeed = 0.12;
+      switch (blinkState) {
         case "CLOSING":
-          blinkProgressRef.current += blinkSpeed;
-          if (blinkProgressRef.current >= 1) {
-            blinkProgressRef.current = 1;
-            blinkStateRef.current = "CLOSED";
+          blinkT += blinkSpeed;
+          if (blinkT >= 1) {
+            blinkT = 1;
+            blinkState = "CLOSED";
             setTimeout(() => {
-              blinkStateRef.current = "OPENING";
-            }, 50 + Math.random() * 40);
+              if (!destroyed) blinkState = "OPENING";
+            }, 60);
           }
           break;
         case "OPENING":
-          blinkProgressRef.current -= blinkSpeed * 0.8;
-          if (blinkProgressRef.current <= 0) {
-            blinkProgressRef.current = 0;
-            blinkStateRef.current = "OPEN";
+          blinkT -= blinkSpeed * 0.8;
+          if (blinkT <= 0) {
+            blinkT = 0;
+            blinkState = "OPEN";
           }
           break;
       }
 
-      const blinkT = blinkProgressRef.current;
-      const particles = particlesRef.current;
+      // Pupil tracking
+      const mx = mouse.x;
+      const my = mouse.y;
+      const maxPupilOffset = 6;
 
-      ctx.font = "11px monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      function getPupilOffset(eyeCenter: { x: number; y: number }) {
+        if (mx < -9000) return { ox: 0, oy: 0 };
+        const angle = Math.atan2(my - eyeCenter.y, mx - eyeCenter.x);
+        const dist = Math.hypot(mx - eyeCenter.x, my - eyeCenter.y);
+        const t = Math.min(dist / 300, 1);
+        return {
+          ox: Math.cos(angle) * t * maxPupilOffset,
+          oy: Math.sin(angle) * t * maxPupilOffset,
+        };
+      }
 
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
+      const pupilOffL = getPupilOffset(leftEyeCenter);
+      const pupilOffR = getPupilOffset(rightEyeCenter);
 
-        let tx = p.baseX + floatX;
-        let ty = p.baseY + floatY;
+      ctx!.font = "12px monospace";
+      ctx!.textAlign = "center";
+      ctx!.textBaseline = "middle";
 
-        if (p.group === "bg") {
-          tx = p.baseX + floatX * 0.2;
-          ty = p.baseY + floatY * 0.2;
-        }
+      // ── Update & draw body ──
+      for (let i = 0; i < bodyParticles.length; i++) {
+        const p = bodyParticles[i];
+        p.targetX = p.baseTargetX + floatX;
+        p.targetY = p.baseTargetY + floatY;
 
-        // Eye pupil tracking
-        if (p.group === "eye-left" && mx > -9000) {
-          tx += pupilOffLX * (1 - blinkT);
-          ty += pupilOffLY * (1 - blinkT);
-        } else if (p.group === "eye-right" && mx > -9000) {
-          tx += pupilOffRX * (1 - blinkT);
-          ty += pupilOffRY * (1 - blinkT);
-        }
-
-        // Blink: eyes squish to horizontal line
-        if ((p.group === "eye-left" || p.group === "eye-right") && blinkT > 0) {
-          const eyeCx = p.group === "eye-left" ? leftEyeCx : rightEyeCx;
-          const closedY = eyeY + floatY;
-          ty = ty + (closedY - ty) * blinkT;
-          tx = tx + (eyeCx + floatX - tx) * blinkT * 0.3;
-        }
-
-        p.targetX = tx;
-        p.targetY = ty;
-
-        // Cursor repulsion
+        // Cursor disturbance
         if (mx > -9000) {
           const dx = p.x - mx;
           const dy = p.y - my;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const repulsionRadius = 100;
-
-          if (dist < repulsionRadius && dist > 0) {
-            const force = (repulsionRadius - dist) / repulsionRadius;
-            const angle = Math.atan2(dy, dx);
-            const strength = p.group === "bg" ? 2 : 5;
-            p.vx += Math.cos(angle) * force * strength;
-            p.vy += Math.sin(angle) * force * strength;
+          if (dist < 120 && dist > 0) {
+            const force = (120 - dist) / 120;
+            p.vx += (dx / dist) * force * 4;
+            p.vy += (dy / dist) * force * 4;
           }
         }
 
-        // Elastic return
-        const ddx = p.targetX - p.x;
-        const ddy = p.targetY - p.y;
-        p.vx += ddx * p.ease;
-        p.vy += ddy * p.ease;
-        p.vx *= p.friction;
-        p.vy *= p.friction;
+        // Spring physics
+        const dx = p.targetX - p.x;
+        const dy = p.targetY - p.y;
+        p.vx += dx * SPRING;
+        p.vy += dy * SPRING;
+        p.vx *= FRICTION;
+        p.vy *= FRICTION;
         p.x += p.vx;
         p.y += p.vy;
 
-        // Draw
-        let drawAlpha = p.alpha;
-        if ((p.group === "eye-left" || p.group === "eye-right") && blinkT > 0.7) {
-          drawAlpha *= 1 - (blinkT - 0.7) / 0.3;
-        }
-
-        if (drawAlpha > 0.02) {
-          ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(drawAlpha, 1)})`;
-          ctx.fillText(p.char, p.x, p.y);
+        if (p.alpha > 0.02) {
+          ctx!.fillStyle = `rgba(255,255,255,${p.alpha})`;
+          ctx!.fillText(p.char, p.x, p.y);
         }
       }
 
+      // ── Update & draw eyes ──
+      function updateEyes(eyes: EyeParticle[], pupilOff: { ox: number; oy: number }) {
+        for (let i = 0; i < eyes.length; i++) {
+          const p = eyes[i];
+
+          // Morph between open and closed based on blinkT
+          const baseX = p.openX + (p.closedX - p.openX) * blinkT;
+          const baseY = p.openY + (p.closedY - p.openY) * blinkT;
+
+          if (p.isPupil) {
+            p.targetX = baseX + pupilOff.ox * (1 - blinkT) + floatX;
+            p.targetY = baseY + pupilOff.oy * (1 - blinkT) + floatY;
+          } else {
+            p.targetX = baseX + floatX;
+            p.targetY = baseY + floatY;
+          }
+
+          // Cursor disturbance
+          if (mx > -9000) {
+            const ddx = p.x - mx;
+            const ddy = p.y - my;
+            const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+            if (dist < 120 && dist > 0) {
+              const force = (120 - dist) / 120;
+              p.vx += (ddx / dist) * force * 4;
+              p.vy += (ddy / dist) * force * 4;
+            }
+          }
+
+          const ddx = p.targetX - p.x;
+          const ddy = p.targetY - p.y;
+          p.vx += ddx * SPRING;
+          p.vy += ddy * SPRING;
+          p.vx *= FRICTION;
+          p.vy *= FRICTION;
+          p.x += p.vx;
+          p.y += p.vy;
+
+          const alpha = p.isPupil ? 0.95 : 0.6;
+          ctx!.fillStyle = `rgba(255,255,255,${alpha})`;
+          ctx!.fillText(p.char, p.x, p.y);
+        }
+      }
+
+      updateEyes(leftEye, pupilOffL);
+      updateEyes(rightEye, pupilOffR);
+
       animRef.current = requestAnimationFrame(animate);
-    };
+    }
 
     animRef.current = requestAnimationFrame(animate);
 
     return () => {
+      destroyed = true;
       cancelAnimationFrame(animRef.current);
-      if (blinkTimerRef.current) clearTimeout(blinkTimerRef.current);
+      if (blinkTimer) clearTimeout(blinkTimer);
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseleave", onMouseLeave);
       container.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("resize", init);
+      window.removeEventListener("resize", onResize);
     };
-  }, [init]);
+  }, []);
 
   return (
     <div ref={containerRef} className="relative w-full h-full cursor-crosshair">
