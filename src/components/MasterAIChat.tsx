@@ -72,11 +72,22 @@ export default function MasterAIChat() {
 
       const data = await res.json();
 
+      let responseText = data.response;
+
+      // Append skill launch result if action was executed
+      if (data.actionResult) {
+        if (data.actionResult.success) {
+          responseText += `\n\n⚡ **Skill launched!** CID: \`${data.actionResult.ipfsCid?.substring(0, 16)}...\` — now live in the Vault.`;
+        } else {
+          responseText += `\n\n⚠️ Skill launch failed: ${data.actionResult.error}`;
+        }
+      }
+
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last?.role === "assistant") {
-          updated[updated.length - 1] = { ...last, content: data.response };
+          updated[updated.length - 1] = { ...last, content: responseText };
         }
         return updated;
       });

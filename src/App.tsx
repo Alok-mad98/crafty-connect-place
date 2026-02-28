@@ -5,6 +5,7 @@ import MasterAIChat from "@/components/MasterAIChat";
 import Index from "@/pages/Index";
 import Forge from "@/pages/Forge";
 import Vault from "@/pages/Vault";
+import Mint from "@/pages/Mint";
 import NotFound from "@/pages/NotFound";
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Route path="/" element={<Index />} />
             <Route path="/forge" element={<Forge />} />
             <Route path="/vault" element={<Vault />} />
+            <Route path="/mint" element={<Mint />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
