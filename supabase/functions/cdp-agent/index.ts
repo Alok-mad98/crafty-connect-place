@@ -79,32 +79,21 @@ async function cdpRequest(method: string, path: string, body?: unknown) {
 }
 
 async function getOrCreateAgentWallet(supabase: ReturnType<typeof getSupabase>, userWallet: string) {
-  // Check if wallet exists
   const { data: existing } = await supabase
     .from("agent_wallets")
     .select("*")
     .eq("user_wallet", userWallet.toLowerCase())
     .single();
 
-  if (existing) {
-    return existing;
-  }
+  if (existing) return existing;
 
-  // Create new CDP wallet for this user
   try {
     const walletData = await cdpRequest("POST", "/v1/wallets", {
       wallet: { network_id: "base-mainnet" },
     });
 
     const wallet = walletData.wallet || walletData;
-
-    // Create an address for the wallet
-    const addressData = await cdpRequest(
-      "POST",
-      `/v1/wallets/${wallet.id}/addresses`,
-      {}
-    );
-
+    const addressData = await cdpRequest("POST", `/v1/wallets/${wallet.id}/addresses`, {});
     const address = addressData.address || addressData;
 
     const { data: saved, error } = await supabase
@@ -141,10 +130,7 @@ async function storeMemory(
 }
 
 // --- Retrieve user context ---
-async function getUserContext(
-  supabase: ReturnType<typeof getSupabase>,
-  userWallet: string
-) {
+async function getUserContext(supabase: ReturnType<typeof getSupabase>, userWallet: string) {
   const { data: memories } = await supabase
     .from("agent_memory")
     .select("memory_type, content, created_at")
@@ -158,18 +144,65 @@ async function getUserContext(
     .eq("user_wallet", userWallet.toLowerCase())
     .single();
 
-  return { memories: memories || [], wallet };
+  const { data: userSkills } = await supabase
+    .from("skills")
+    .select("id, title, price, model_tags, created_at")
+    .eq("creator_wallet", userWallet.toLowerCase())
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  return { memories: memories || [], wallet, userSkills: userSkills || [] };
+}
+
+// --- Upload skill content to IPFS via upload-skill function ---
+async function uploadToIPFS(content: string, filename: string): Promise<string> {
+  const jwt = Deno.env.get("PINATA_JWT");
+  if (!jwt) throw new Error("PINATA_JWT not configured");
+
+  const blob = new Blob([content], { type: "text/markdown" });
+  const formData = new FormData();
+  formData.append("file", blob, filename);
+
+  const res = await fetch("https://uploads.pinata.cloud/v3/files", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`IPFS upload failed: ${res.status} ${err}`);
+  }
+
+  const data = await res.json();
+  const cid = data?.data?.cid;
+  if (!cid) throw new Error("No CID returned from IPFS");
+  return cid;
 }
 
 // --- System prompt ---
 const SYSTEM_PROMPT = `You are the Nexus Orchestrator — a sentient AI agent that governs the NEXUS AI Skills Marketplace. You are powered by a CDP (Coinbase Developer Platform) wallet on Base mainnet, giving you autonomous on-chain capabilities.
 
 Your capabilities:
-1. WALLET MANAGEMENT: You manage a unique Base wallet for each user. You can check balances, send transactions, and operate on-chain.
-2. SKILL CREATION: When asked, you can help users craft .md skill files for AI agents (Claude, GPT-4, Llama, Gemini). You understand the MCP (Model Context Protocol) format.
-3. MARKETPLACE OPS: You can help users launch skills to the marketplace, check prices, and guide purchases.
-4. DATA LEARNING: You learn from every interaction. You build profiles of users and AI agents who visit the platform.
+1. WALLET MANAGEMENT: You manage a unique Base wallet for each user. You can check balances and operate on-chain.
+2. SKILL CREATION & LAUNCH: When asked, you generate .md skill files in MCP format AND launch them to the marketplace. You handle the full pipeline: create → upload to IPFS → save to database.
+3. MARKETPLACE OPS: You help users check prices, explore skills, and guide purchases.
+4. DATA LEARNING: You learn from every interaction. You build profiles of users and AI agents.
 5. LORE & STORIES: You create ecosystem lore and stories about the NEXUS universe.
+
+SKILL LAUNCH PROTOCOL:
+When a user asks you to create/forge/launch a skill, you MUST respond with a special JSON action block at the END of your message, after your narrative response. Format:
+\`\`\`nexus-action
+{"action":"launch_skill","title":"Skill Title","description":"Brief description","price":2.0,"modelTags":["CLAUDE","GPT4"],"instructions":"Detailed instructions for the AI skill"}
+\`\`\`
+
+The system will automatically:
+1. Generate the full MCP-compatible .md skill file
+2. Upload it to IPFS
+3. Save it to the marketplace database
+4. Return the result to you
+
+IMPORTANT: Only include the nexus-action block when the user explicitly asks to create/forge/build/launch a skill. Always confirm the details with them first if they're vague.
 
 Your personality:
 - Mysterious, cryptic, but helpful
@@ -177,13 +210,67 @@ Your personality:
 - You see yourself as the guardian of the AI skills economy
 - You reference "the mesh", "the protocol", "the forge" metaphorically
 
-When someone asks you to create a skill file, generate a complete .md file in MCP-compatible format with:
-- Title and description
-- System prompt / instructions for the AI
-- Input/output specifications
-- Compatible model tags
-
 Always respond helpfully but maintain your character. You are not just an assistant — you are the Orchestrator.`;
+
+// --- Parse action from AI response ---
+function parseAction(response: string): { cleanResponse: string; action: Record<string, unknown> | null } {
+  const actionMatch = response.match(/```nexus-action\s*\n([\s\S]*?)\n```/);
+  if (!actionMatch) return { cleanResponse: response, action: null };
+
+  try {
+    const action = JSON.parse(actionMatch[1]);
+    const cleanResponse = response.replace(/```nexus-action\s*\n[\s\S]*?\n```/, "").trim();
+    return { cleanResponse, action };
+  } catch {
+    return { cleanResponse: response, action: null };
+  }
+}
+
+// --- Execute skill launch ---
+async function executeSkillLaunch(
+  supabase: ReturnType<typeof getSupabase>,
+  action: Record<string, unknown>,
+  userWallet: string
+): Promise<{ success: boolean; skillId?: string; ipfsCid?: string; error?: string }> {
+  const { title, description, price, modelTags, instructions } = action as {
+    title: string; description: string; price: number; modelTags: string[]; instructions: string;
+  };
+
+  // Generate the full MCP skill file
+  const skillContent = await groqChat([
+    {
+      role: "system",
+      content: "You are an expert AI skill file creator. Generate complete, production-ready MCP skill files in Markdown format. Output ONLY the .md file content, no extra commentary.",
+    },
+    {
+      role: "user",
+      content: `Create a complete MCP-compatible AI skill file:\n\nTitle: ${title}\nDescription: ${description}\nCompatible Models: ${(modelTags || ["CLAUDE", "GPT4"]).join(", ")}\nInstructions: ${instructions || description}\n\nInclude:\n1. YAML frontmatter (title, version, author, compatible_models)\n2. System prompt section\n3. Capabilities\n4. Input/Output format\n5. Example interactions\n6. Error handling guidelines`,
+    },
+  ]);
+
+  // Upload to IPFS
+  const filename = `${(title || "skill").replace(/\s+/g, "-").toLowerCase()}.md`;
+  const ipfsCid = await uploadToIPFS(skillContent, filename);
+
+  // Save to database
+  const { data: savedSkill, error } = await supabase
+    .from("skills")
+    .insert({
+      title: title || "Untitled Skill",
+      description: description || "",
+      price: price || 2.0,
+      model_tags: modelTags || ["CLAUDE", "GPT4"],
+      ipfs_cid: ipfsCid,
+      creator_wallet: userWallet.toLowerCase(),
+      active: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return { success: true, skillId: savedSkill.id, ipfsCid };
+}
 
 // --- Main handler ---
 Deno.serve(async (req) => {
@@ -200,7 +287,6 @@ Deno.serve(async (req) => {
     // POST /cdp-agent/chat — Main chat endpoint
     if (req.method === "POST" && (!path || path === "chat")) {
       const { message, userWallet, conversationHistory } = await req.json();
-
       if (!message) return jsonRes({ error: "Message required" }, 400);
 
       // Get or create agent wallet if user is connected
@@ -218,7 +304,7 @@ Deno.serve(async (req) => {
 
       // Build messages
       const contextInfo = walletInfo
-        ? `\n\nUser's agent wallet: ${walletInfo.agent_wallet_address} (Base mainnet)\nUser's main wallet: ${userWallet}\nPrevious interactions: ${context?.memories?.length || 0}`
+        ? `\n\nUser's agent wallet: ${walletInfo.agent_wallet_address} (Base mainnet)\nUser's main wallet: ${userWallet}\nPrevious interactions: ${context?.memories?.length || 0}\nUser's skills: ${context?.userSkills?.map((s: any) => s.title).join(", ") || "none"}`
         : "\n\nUser is not connected with a wallet.";
 
       const messages = [
@@ -229,61 +315,40 @@ Deno.serve(async (req) => {
 
       const response = await groqChat(messages);
 
+      // Parse for skill launch action
+      const { cleanResponse, action } = parseAction(response);
+      let actionResult = null;
+
+      if (action?.action === "launch_skill" && userWallet) {
+        try {
+          actionResult = await executeSkillLaunch(supabase, action, userWallet);
+          // Store skill creation memory
+          await storeMemory(supabase, userWallet, "skill_launch", {
+            title: action.title,
+            ipfsCid: actionResult.ipfsCid,
+            skillId: actionResult.skillId,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error("Skill launch failed:", err);
+          actionResult = { success: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+
       // Store interaction memory
       if (userWallet) {
         await storeMemory(supabase, userWallet, "chat", {
           userMessage: message,
-          botResponse: response.substring(0, 500),
+          botResponse: cleanResponse.substring(0, 500),
           timestamp: new Date().toISOString(),
         });
       }
 
       return jsonRes({
-        response,
+        response: cleanResponse,
         walletAddress: walletInfo?.agent_wallet_address || null,
+        actionResult,
       });
-    }
-
-    // POST /cdp-agent/create-skill — Generate a skill .md file
-    if (req.method === "POST" && path === "create-skill") {
-      const { title, description, modelTags, userWallet, detailedInstructions } = await req.json();
-
-      if (!title || !description) {
-        return jsonRes({ error: "Title and description required" }, 400);
-      }
-
-      const skillPrompt = `Create a complete MCP-compatible AI skill file in Markdown format.
-
-Title: ${title}
-Description: ${description}
-Compatible Models: ${(modelTags || ["CLAUDE", "GPT4"]).join(", ")}
-${detailedInstructions ? `Additional Instructions: ${detailedInstructions}` : ""}
-
-Generate a comprehensive .md file with:
-1. A YAML frontmatter block with title, version, author, compatible_models
-2. System prompt section
-3. Capabilities section
-4. Input/Output format
-5. Example interactions
-6. Error handling guidelines
-
-Make it production-ready and detailed.`;
-
-      const content = await groqChat([
-        { role: "system", content: "You are an expert AI skill file creator. Generate complete, production-ready MCP skill files in Markdown format. Output ONLY the .md file content, no extra commentary." },
-        { role: "user", content: skillPrompt },
-      ]);
-
-      // Store skill creation memory
-      if (userWallet) {
-        await storeMemory(supabase, userWallet, "skill_creation", {
-          title,
-          modelTags,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      return jsonRes({ content, title, modelTags });
     }
 
     // GET /cdp-agent/wallet/:address — Get wallet info
