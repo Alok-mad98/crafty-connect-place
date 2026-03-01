@@ -8,7 +8,7 @@ const MAX_SUPPLY = 779;
 const FREE_SUPPLY = 100;
 const TREASURY = 2;
 const PAID_SUPPLY = MAX_SUPPLY - FREE_SUPPLY - TREASURY;
-const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "xiofvutfjujnzdzlgmyc";
+const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "ffmqlinwuinxzxwfueim";
 const API_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1/agent-mint`;
 
 type Tab = "agents" | "humans" | "about";
