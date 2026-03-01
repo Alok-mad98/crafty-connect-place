@@ -53,3 +53,6 @@ next-env.d.ts
 
 # supabase temp
 supabase/.temp
+
+# metadata (on IPFS)
+/metadata

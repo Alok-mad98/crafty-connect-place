@@ -21,7 +21,7 @@ contract NexusAgentNFT is ERC721, Ownable {
     uint256 public totalMinted;
     bool public mintActive;
 
-    string public constant METADATA_CID = "QmPcU97STF7X5LnNnMb238Frmy6WcmecYAqcCXGMf8wTii";
+    string public constant METADATA_CID = "QmfVgSpYHDJJg2pC8QKsXdEoHzwjBzEmMj1i6fwsofkWG3";
 
     // Anti-bot: one mint per wallet
     mapping(address => bool) public hasMinted;
