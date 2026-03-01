@@ -1,1 +1,4 @@
 project_id = "xiofvutfjujnzdzlgmyc"
+
+[functions.agent-mint]
+verify_jwt = false
