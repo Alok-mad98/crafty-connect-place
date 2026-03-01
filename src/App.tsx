@@ -6,6 +6,7 @@ import Index from "@/pages/Index";
 import Forge from "@/pages/Forge";
 import Vault from "@/pages/Vault";
 import Mint from "@/pages/Mint";
+import MintDocs from "@/pages/MintDocs";
 import NotFound from "@/pages/NotFound";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
             <Route path="/forge" element={<Forge />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/mint" element={<Mint />} />
+            <Route path="/mint/docs" element={<MintDocs />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

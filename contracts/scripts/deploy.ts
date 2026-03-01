@@ -1,11 +1,23 @@
 import hre from "hardhat";
 
 async function main() {
-  const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-  const treasury = process.env.TREASURY_ADDRESS!;
-  const Market = await hre.ethers.getContractFactory("AgentSkillsMarket");
-  const market = await Market.deploy(USDC, treasury);
-  await market.waitForDeployment();
-  console.log("AgentSkillsMarket deployed to:", await market.getAddress());
+  // 0.005 ETH = 5000000000000000 wei
+  const mintPrice = 5000000000000000n;
+
+  console.log("Deploying NexusAgentNFT to Base mainnet...");
+  console.log("Mint price:", mintPrice.toString(), "wei (0.005 ETH)");
+
+  const NFT = await hre.ethers.getContractFactory("NexusAgentNFT");
+  const nft = await NFT.deploy(mintPrice);
+  await nft.waitForDeployment();
+
+  const address = await nft.getAddress();
+  console.log("NexusAgentNFT deployed to:", address);
+  console.log("Treasury tokens (0, 1) minted to deployer");
+  console.log("Done!");
 }
-main().catch(console.error);
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
