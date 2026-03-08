@@ -156,17 +156,22 @@ async function getUserContext(supabase: ReturnType<typeof getSupabase>, userWall
 
 // --- Upload skill content to IPFS via upload-skill function ---
 async function uploadToIPFS(content: string, filename: string): Promise<string> {
-  const jwt = Deno.env.get("PINATA_JWT");
-  if (!jwt) throw new Error("PINATA_JWT not configured");
+  const accessKey = Deno.env.get("FILEBASE_ACCESS_KEY");
+  const secretKey = Deno.env.get("FILEBASE_SECRET_KEY");
+  const bucket = Deno.env.get("FILEBASE_BUCKET") || "ai-skills";
+  if (!accessKey || !secretKey) throw new Error("Filebase credentials not configured");
 
-  const blob = new Blob([content], { type: "text/markdown" });
-  const formData = new FormData();
-  formData.append("file", blob, filename);
+  const objectKey = `skills/${Date.now()}-${filename}`;
+  const url = `https://s3.filebase.com/${bucket}/${objectKey}`;
+  const authString = btoa(`${accessKey}:${secretKey}`);
 
-  const res = await fetch("https://uploads.pinata.cloud/v3/files", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${jwt}` },
-    body: formData,
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "text/markdown",
+      "Authorization": `Basic ${authString}`,
+    },
+    body: content,
   });
 
   if (!res.ok) {
@@ -174,9 +179,8 @@ async function uploadToIPFS(content: string, filename: string): Promise<string> 
     throw new Error(`IPFS upload failed: ${res.status} ${err}`);
   }
 
-  const data = await res.json();
-  const cid = data?.data?.cid;
-  if (!cid) throw new Error("No CID returned from IPFS");
+  const cid = res.headers.get("x-amz-meta-cid");
+  if (!cid) throw new Error("No CID returned from Filebase");
   return cid;
 }
 
