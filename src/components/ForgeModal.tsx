@@ -10,6 +10,8 @@ import {
   USDC_ADDRESS,
 } from "@/lib/contracts";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
 const MODEL_OPTIONS = ["CLAUDE", "GPT4", "LLAMA", "GEMINI"] as const;
 
 interface ForgeState {
@@ -179,12 +181,12 @@ export default function ForgeModal() {
 
       // Save skill metadata to database
       const saveRes = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/skills-api`,
+        `${SUPABASE_URL}/functions/v1/skills-api`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
           },
           body: JSON.stringify({
             title: state.title,
@@ -199,7 +201,9 @@ export default function ForgeModal() {
         }
       );
       if (!saveRes.ok) {
-        console.warn("Failed to save skill metadata:", await saveRes.text());
+        const errText = await saveRes.text();
+        console.error("Failed to save skill metadata:", errText);
+        throw new Error(`Skill minted onchain but failed to save metadata: ${errText}`);
       }
 
       setStatus("done");
