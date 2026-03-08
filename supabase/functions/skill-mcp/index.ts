@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
     if (error || !skill) return jsonRes({ error: "Skill not found" }, 404);
 
-    const gateway = Deno.env.get("PINATA_GATEWAY") || "blue-obvious-jackal-985.mypinata.cloud";
+    const gateway = "ipfs.filebase.io";
     const fileUrl = `https://${gateway}/ipfs/${skill.ipfs_cid}`;
 
     // Fetch the actual .md content from IPFS

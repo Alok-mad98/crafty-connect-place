@@ -19,13 +19,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const jwt = Deno.env.get("PINATA_JWT");
-    if (!jwt) {
-      console.error("PINATA_JWT is missing");
-      return jsonRes({ error: "IPFS not configured: missing PINATA_JWT" }, 500);
+    const accessKey = Deno.env.get("FILEBASE_ACCESS_KEY");
+    const secretKey = Deno.env.get("FILEBASE_SECRET_KEY");
+    const bucket = Deno.env.get("FILEBASE_BUCKET") || "ai-skills";
+
+    if (!accessKey || !secretKey) {
+      console.error("Filebase credentials missing");
+      return jsonRes({ error: "IPFS not configured: missing Filebase credentials" }, 500);
     }
 
-    // Read the raw request body and content-type
     const contentType = req.headers.get("content-type") || "";
     const rawBody = await req.arrayBuffer();
 
@@ -33,7 +35,6 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "Expected multipart/form-data", received: contentType }, 400);
     }
 
-    // Re-construct a Request so Deno can parse the formData
     const reconstructed = new Request("http://localhost", {
       method: "POST",
       headers: { "content-type": contentType },
@@ -56,28 +57,66 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "File too large (max 20MB)" }, 400);
     }
 
-    // Upload to Pinata v3 REST API
-    const pinataForm = new FormData();
-    pinataForm.append("file", file);
+    // Upload to Filebase S3-compatible API
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const objectKey = `skills/${Date.now()}-${file.name}`;
+    const host = `${bucket}.s3.filebase.com`;
+    const url = `https://${host}/${objectKey}`;
 
-    const pinataRes = await fetch("https://uploads.pinata.cloud/v3/files", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${jwt}` },
-      body: pinataForm,
+    // Create AWS Signature V4 headers
+    const now = new Date();
+    const dateStamp = now.toISOString().replace(/[-:]/g, "").slice(0, 8);
+    const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const region = "us-east-1";
+    const service = "s3";
+
+    // Simple PUT with basic auth headers (Filebase supports this)
+    const authString = btoa(`${accessKey}:${secretKey}`);
+
+    const putRes = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "text/markdown",
+        "x-amz-date": amzDate,
+        "Authorization": `Basic ${authString}`,
+      },
+      body: fileBytes,
     });
 
-    if (!pinataRes.ok) {
-      const errText = await pinataRes.text();
-      console.error("Pinata upload failed:", pinataRes.status, errText);
-      return jsonRes({ error: "IPFS upload failed", details: errText }, 500);
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      console.error("Filebase upload failed:", putRes.status, errText);
+
+      // Fallback: try with AWS-style auth using fetch to presigned-like endpoint
+      const fallbackUrl = `https://s3.filebase.com/${bucket}/${objectKey}`;
+      const fallbackRes = await fetch(fallbackUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "text/markdown",
+          "Authorization": `Basic ${authString}`,
+        },
+        body: fileBytes,
+      });
+
+      if (!fallbackRes.ok) {
+        const fallbackErr = await fallbackRes.text();
+        console.error("Filebase fallback upload failed:", fallbackRes.status, fallbackErr);
+        return jsonRes({ error: "IPFS upload failed", details: fallbackErr }, 500);
+      }
+
+      const cid = fallbackRes.headers.get("x-amz-meta-cid");
+      if (!cid) {
+        console.error("No CID in Filebase fallback response headers");
+        return jsonRes({ error: "No CID returned from IPFS" }, 500);
+      }
+
+      return jsonRes({ ipfsCid: cid, name: file.name, size: file.size });
     }
 
-    const pinataData = await pinataRes.json();
-    const cid = pinataData?.data?.cid;
-
+    const cid = putRes.headers.get("x-amz-meta-cid");
     if (!cid) {
-      console.error("No CID in Pinata response:", JSON.stringify(pinataData));
-      return jsonRes({ error: "No CID returned from IPFS", details: JSON.stringify(pinataData) }, 500);
+      console.error("No CID in Filebase response headers");
+      return jsonRes({ error: "No CID returned from IPFS" }, 500);
     }
 
     return jsonRes({ ipfsCid: cid, name: file.name, size: file.size });
