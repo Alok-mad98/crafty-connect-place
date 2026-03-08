@@ -80,16 +80,36 @@ export default function Vault() {
       const ethereumProvider = await wallet.getEthereumProvider();
       const provider = new ethers.BrowserProvider(ethereumProvider);
       const signer = await provider.getSigner();
+      const fromAddr = await signer.getAddress();
       const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
       const priceWei = ethers.parseUnits(skill.price, 6);
-      const allowance = await usdc.allowance(await signer.getAddress(), CONTRACT_ADDRESS);
+      const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
       if (allowance < priceWei) {
-        const approveTx = await usdc.approve(CONTRACT_ADDRESS, priceWei);
-        await approveTx.wait();
+        // Encode approve manually to avoid BigInt serialization with Privy
+        const approveIface = new ethers.Interface(ERC20_ABI);
+        const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, priceWei]);
+        const approveHash = await ethereumProvider.request({
+          method: "eth_sendTransaction",
+          params: [{
+            from: fromAddr,
+            to: USDC_ADDRESS,
+            data: approveData,
+          }],
+        });
+        await provider.waitForTransaction(approveHash as string);
       }
-      const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
-      const buyTx = await market.buySkill(skill.onchainId);
-      const receipt = await buyTx.wait();
+      // Encode buySkill manually to avoid BigInt serialization with Privy
+      const buyIface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
+      const buyData = buyIface.encodeFunctionData("buySkill", [skill.onchainId]);
+      const buyHash = await ethereumProvider.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: fromAddr,
+          to: CONTRACT_ADDRESS,
+          data: buyData,
+        }],
+      });
+      const receipt = await provider.waitForTransaction(buyHash as string);
 
       // Record purchase in DB
       await fetch(`${SUPABASE_URL}/functions/v1/skills-api/purchase`, {
@@ -101,7 +121,7 @@ export default function Vault() {
         body: JSON.stringify({
           skillId: skill.id,
           buyerWallet: wallet.address?.toLowerCase(),
-          txHash: receipt.hash,
+          txHash: receipt?.hash || buyHash,
         }),
       });
 

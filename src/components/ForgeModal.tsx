@@ -121,20 +121,53 @@ export default function ForgeModal() {
 
       const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
       const listingFee = ethers.parseUnits("0.5", 6);
-      const allowance = await usdc.allowance(await signer.getAddress(), CONTRACT_ADDRESS);
+      const fromAddr = await signer.getAddress();
+      const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
       if (allowance < listingFee) {
-        const approveTx = await usdc.approve(CONTRACT_ADDRESS, listingFee);
-        await approveTx.wait();
+        // Encode approve manually to avoid BigInt serialization with Privy
+        const approveIface = new ethers.Interface(ERC20_ABI);
+        const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, listingFee]);
+        const approveHash = await ethereumProvider.request({
+          method: "eth_sendTransaction",
+          params: [{
+            from: fromAddr,
+            to: USDC_ADDRESS,
+            data: approveData,
+          }],
+        });
+        await provider.waitForTransaction(approveHash as string);
       }
 
       setStatus("minting");
-      const market = new ethers.Contract(CONTRACT_ADDRESS, AGENT_SKILLS_MARKET_ABI, signer);
       const priceWei = ethers.parseUnits(state.price, 6);
-      const mintTx = await market.launchSkill(ipfsCid, priceWei);
-      const receipt = await mintTx.wait();
 
+      // Build tx manually to avoid BigInt JSON serialization issues with Privy's RPC relay
       const iface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
-      const log = receipt.logs.find((l: ethers.Log) => {
+      const txData = iface.encodeFunctionData("launchSkill", [ipfsCid, priceWei]);
+      const gasEstimate = await provider.estimateGas({
+        from: fromAddr,
+        to: CONTRACT_ADDRESS,
+        data: txData,
+      });
+      const feeData = await provider.getFeeData();
+
+      // Send via raw provider request with hex-string values (no BigInt in JSON)
+      const txHash = await ethereumProvider.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: fromAddr,
+          to: CONTRACT_ADDRESS,
+          data: txData,
+          gas: "0x" + (gasEstimate * 130n / 100n).toString(16),  // +30% buffer
+          ...(feeData.maxFeePerGas ? {
+            maxFeePerGas: "0x" + feeData.maxFeePerGas.toString(16),
+            maxPriorityFeePerGas: "0x" + (feeData.maxPriorityFeePerGas || 0n).toString(16),
+          } : {}),
+        }],
+      });
+      const receipt = await provider.waitForTransaction(txHash as string);
+
+      const log = receipt?.logs.find((l: ethers.Log) => {
         try {
           return iface.parseLog({ topics: [...l.topics], data: l.data })?.name === "SkillLaunched";
         } catch {
@@ -160,8 +193,8 @@ export default function ForgeModal() {
             modelTags: state.modelTags,
             ipfsCid,
             onchainId,
-            creatorWallet: await signer.getAddress(),
-            txHash: receipt.hash,
+            creatorWallet: fromAddr,
+            txHash: receipt?.hash || txHash,
           }),
         }
       );
