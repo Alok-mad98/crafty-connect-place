@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import Button from "./ui/Button";
-import { PINATA_GATEWAY } from "@/lib/contracts";
+import { IPFS_GATEWAY } from "@/lib/contracts";
 
 export interface SkillData {
   id: string;
