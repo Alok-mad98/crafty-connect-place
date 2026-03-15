@@ -18,4 +18,8 @@ export const USDC_ADDRESS = import.meta.env.VITE_USDC_ADDRESS || "0x833589fCD6eD
 export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || "8453");
 
 export const API_BASE = import.meta.env.VITE_API_BASE || "";
-export const PINATA_GATEWAY = import.meta.env.VITE_PINATA_GATEWAY || "blue-obvious-jackal-985.mypinata.cloud";
+<<<<<<< HEAD
+export const PINATA_GATEWAY = import.meta.env.VITE_PINATA_GATEWAY || "ipfs.filebase.io";
+=======
+export const IPFS_GATEWAY = "ipfs.filebase.io";
+>>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec

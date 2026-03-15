@@ -65,7 +65,11 @@ Deno.serve(async (req) => {
 
       if (error || !data) return jsonRes({ error: "Skill not found" }, 404);
 
-      const gateway = Deno.env.get("PINATA_GATEWAY") || "blue-obvious-jackal-985.mypinata.cloud";
+<<<<<<< HEAD
+      const gateway = Deno.env.get("IPFS_GATEWAY") || "ipfs.filebase.io";
+=======
+      const gateway = "ipfs.filebase.io";
+>>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec
 
       return jsonRes({
         id: data.id,

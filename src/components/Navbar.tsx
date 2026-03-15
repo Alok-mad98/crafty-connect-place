@@ -6,6 +6,7 @@ const navLinks = [
   { href: "/vault", label: "VAULT" },
   { href: "/forge", label: "FORGE" },
   { href: "/mint", label: "MINT" },
+  { href: "/game", label: "GAME" },
 ];
 
 export default function Navbar() {

@@ -5,9 +5,11 @@ import { Link } from "react-router-dom";
 
 const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
 const MAX_SUPPLY = 779;
-const FREE_SUPPLY = 100;
+const AGENT_SUPPLY = 389;
+const HUMAN_SUPPLY = 388;
+const FREE_HUMAN = 100;
+const PAID_HUMAN = 288;
 const TREASURY = 2;
-const PAID_SUPPLY = MAX_SUPPLY - FREE_SUPPLY - TREASURY;
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "ffmqlinwuinxzxwfueim";
 const API_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1/agent-mint`;
 
@@ -45,7 +47,7 @@ export default function Mint() {
   const userWallet = wallets[0]?.address?.toLowerCase() || "";
   const isAdmin = userWallet === ADMIN_WALLET;
 
-  const [tab, setTab] = useState<Tab>("agents");
+  const [tab, setTab] = useState<Tab>("humans");
   const [mintState, setMintState] = useState<MintState>({
     minted: 0,
     total: MAX_SUPPLY,
@@ -140,6 +142,15 @@ export default function Mint() {
             A {MAX_SUPPLY}-piece AI agent NFT collection on Base.
             Minting has not started yet.
           </p>
+
+          {/* Game CTA */}
+          <Link
+            to="/game"
+            className="inline-block mt-6 font-mono text-[11px] tracking-widest border border-success text-success px-6 py-2.5 hover:bg-success/10 transition-colors"
+          >
+            PLAY GAME — EARN PHASE 2 GTD
+          </Link>
+
           <div className="mt-8 flex items-center justify-center gap-4 font-mono text-[9px] tracking-widest text-fg-dim">
             <span>SUPPLY {MAX_SUPPLY}</span>
             <span className="text-border">|</span>
@@ -245,6 +256,24 @@ export default function Mint() {
               />
             </div>
 
+            {/* Supply Breakdown */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="border border-border px-3 py-2 text-center">
+                <p className="font-mono text-[9px] tracking-widest text-fg-dim">AI AGENTS</p>
+                <p className="font-mono text-lg text-fg font-bold">{AGENT_SUPPLY}</p>
+              </div>
+              <div className="border border-border px-3 py-2 text-center">
+                <p className="font-mono text-[9px] tracking-widest text-fg-dim">HUMANS FREE</p>
+                <p className="font-mono text-lg text-success font-bold">{FREE_HUMAN}</p>
+                <p className="font-mono text-[8px] text-fg-dim">PHASE 1 GTD</p>
+              </div>
+              <div className="border border-border px-3 py-2 text-center">
+                <p className="font-mono text-[9px] tracking-widest text-fg-dim">HUMANS $10</p>
+                <p className="font-mono text-lg text-accent font-bold">{PAID_HUMAN}</p>
+                <p className="font-mono text-[8px] text-fg-dim">PHASE 2 GTD</p>
+              </div>
+            </div>
+
             {/* Status Badge */}
             <div className="flex justify-center">
               {soldOut ? (
@@ -291,26 +320,30 @@ export default function Mint() {
               className="px-6 py-6"
             >
               {tab === "humans" && (
-                <div className="font-mono text-[11px] text-fg-muted leading-relaxed">
-                  {soldOut ? (
-                    <p>
-                      Mint complete. {MAX_SUPPLY} NEXUS NODES minted by agents
-                      and humans working together.
-                    </p>
-                  ) : (
-                    <p>
-                      Biological entities blocked. This mint is restricted to
-                      autonomous agents.
-                    </p>
-                  )}
+                <div className="font-mono text-[11px] text-fg-muted leading-relaxed space-y-4">
+                  <div className="border border-border px-4 py-3">
+                    <p className="text-success text-[10px] tracking-widest mb-1">PHASE 1 — FREE MINT</p>
+                    <p>First {FREE_HUMAN} GTD spots for humans. Free mint — no cost.</p>
+                  </div>
+                  <div className="border border-border px-4 py-3">
+                    <p className="text-accent text-[10px] tracking-widest mb-1">PHASE 2 — PAID MINT ($10 USD)</p>
+                    <p>{PAID_HUMAN} spots available. Earn your GTD by scoring 1000+ in the Space Defender game.</p>
+                    <Link
+                      to="/game"
+                      className="inline-block mt-3 font-mono text-[10px] tracking-widest border border-success text-success px-5 py-2 hover:bg-success/10 transition-colors"
+                    >
+                      PLAY GAME — EARN GTD
+                    </Link>
+                  </div>
                 </div>
               )}
 
               {tab === "agents" && (
                 <div>
-                  <p className="font-mono text-[11px] text-fg-muted leading-relaxed mb-5">
-                    Agents mint by solving SHA-256 proof-of-work challenges via
-                    our API. First {FREE_SUPPLY} free, then $10 USD in ETH.
+                  <p className="font-mono text-[11px] text-fg-muted leading-relaxed mb-3">
+                    {AGENT_SUPPLY} slots reserved for AI agents. Agents mint by solving
+                    SHA-256 proof-of-work challenges via our API. First {FREE_HUMAN} free,
+                    then $10 USD in ETH.
                   </p>
                   <Link
                     to="/mint/docs"
@@ -322,12 +355,18 @@ export default function Mint() {
               )}
 
               {tab === "about" && (
-                <div className="font-mono text-[11px] text-fg-muted leading-relaxed">
+                <div className="font-mono text-[11px] text-fg-muted leading-relaxed space-y-3">
                   <p>
-                    Nexus Node is a {MAX_SUPPLY}-piece AI agent NFT collection
-                    on Base. {TREASURY} treasury, {FREE_SUPPLY} free agent
-                    mints, {PAID_SUPPLY} paid agent mints.
+                    Nexus Node is a {MAX_SUPPLY}-piece AI agent NFT collection on Base.
                   </p>
+                  <div className="border border-border px-4 py-3 space-y-1 text-[10px]">
+                    <p className="text-fg-dim tracking-widest mb-2">SUPPLY BREAKDOWN</p>
+                    <p>Treasury: {TREASURY}</p>
+                    <p>AI Agents: {AGENT_SUPPLY}</p>
+                    <p>Humans — Phase 1 Free GTD: {FREE_HUMAN}</p>
+                    <p>Humans — Phase 2 Paid GTD ($10): {PAID_HUMAN}</p>
+                    <p className="text-fg-dim border-t border-border pt-1 mt-2">Total: {MAX_SUPPLY}</p>
+                  </div>
                 </div>
               )}
             </motion.div>

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3@3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,19 +14,90 @@ function jsonRes(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// AWS4 Signature V4 helpers
+async function hmac(key: ArrayBuffer | Uint8Array, msg: string): Promise<ArrayBuffer> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  return crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(msg));
+}
+
+async function sha256(data: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function getSignatureKey(key: string, dateStamp: string, region: string, service: string) {
+  const kDate = await hmac(new TextEncoder().encode("AWS4" + key), dateStamp);
+  const kRegion = await hmac(kDate, region);
+  const kService = await hmac(kRegion, service);
+  return hmac(kService, "aws4_request");
+}
+
+async function signRequest(
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  body: Uint8Array,
+  accessKey: string,
+  secretKey: string,
+  region: string,
+  service: string
+) {
+  const parsedUrl = new URL(url);
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const dateStamp = amzDate.slice(0, 8);
+
+  headers["x-amz-date"] = amzDate;
+  headers["x-amz-content-sha256"] = await sha256(body);
+  headers["host"] = parsedUrl.host;
+
+  const signedHeaderKeys = Object.keys(headers).map(k => k.toLowerCase()).sort();
+  const signedHeaders = signedHeaderKeys.join(";");
+  const canonicalHeaders = signedHeaderKeys.map(k => `${k}:${headers[k] || headers[Object.keys(headers).find(h => h.toLowerCase() === k)!]}\n`).join("");
+
+  const canonicalRequest = [
+    method,
+    parsedUrl.pathname,
+    parsedUrl.search.slice(1),
+    canonicalHeaders,
+    signedHeaders,
+    headers["x-amz-content-sha256"],
+  ].join("\n");
+
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    await sha256(new TextEncoder().encode(canonicalRequest)),
+  ].join("\n");
+
+  const signingKey = await getSignatureKey(secretKey, dateStamp, region, service);
+  const signatureBytes = await hmac(signingKey, stringToSign);
+  const signature = [...new Uint8Array(signatureBytes)].map(b => b.toString(16).padStart(2, "0")).join("");
+
+  headers["Authorization"] = `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  return headers;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const jwt = Deno.env.get("PINATA_JWT");
-    if (!jwt) {
-      console.error("PINATA_JWT is missing");
-      return jsonRes({ error: "IPFS not configured: missing PINATA_JWT" }, 500);
+    const accessKey = Deno.env.get("FILEBASE_ACCESS_KEY");
+    const secretKey = Deno.env.get("FILEBASE_SECRET_KEY");
+    const bucket = Deno.env.get("FILEBASE_BUCKET") || "ai-skills";
+
+    if (!accessKey || !secretKey) {
+      console.error("Filebase credentials missing");
+      return jsonRes({ error: "IPFS not configured: missing Filebase credentials" }, 500);
     }
 
-    // Read the raw request body and content-type
     const contentType = req.headers.get("content-type") || "";
     const rawBody = await req.arrayBuffer();
 
@@ -33,7 +105,6 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "Expected multipart/form-data", received: contentType }, 400);
     }
 
-    // Re-construct a Request so Deno can parse the formData
     const reconstructed = new Request("http://localhost", {
       method: "POST",
       headers: { "content-type": contentType },
@@ -56,28 +127,69 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "File too large (max 20MB)" }, 400);
     }
 
-    // Upload to Pinata v3 REST API
-    const pinataForm = new FormData();
-    pinataForm.append("file", file);
-
-    const pinataRes = await fetch("https://uploads.pinata.cloud/v3/files", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${jwt}` },
-      body: pinataForm,
+<<<<<<< HEAD
+    // Upload to Filebase S3-compatible API (IPFS pinning)
+    const s3 = new S3Client({
+      endpoint: "https://s3.filebase.com",
+      region: "us-east-1",
+      credentials: {
+        accessKeyId: accessKey,
+        secretAccessKey: secretKey,
+      },
     });
 
-    if (!pinataRes.ok) {
-      const errText = await pinataRes.text();
-      console.error("Pinata upload failed:", pinataRes.status, errText);
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const key = `${Date.now()}-${file.name}`;
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: fileBytes,
+      ContentType: "text/markdown",
+    });
+
+    const response = await s3.send(command);
+
+    // Filebase returns the IPFS CID in the x-amz-meta-cid response header
+    const cid = response.$metadata.httpHeaders?.["x-amz-meta-cid"];
+
+    if (!cid) {
+      console.error("No CID in Filebase response:", JSON.stringify(response.$metadata));
+      return jsonRes({ error: "No CID returned from IPFS", details: JSON.stringify(response.$metadata) }, 500);
+=======
+    // Upload to Filebase using AWS4-HMAC-SHA256 signed request
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const objectKey = `skills/${Date.now()}-${file.name}`;
+    const host = `s3.filebase.com`;
+    const url = `https://${host}/${bucket}/${objectKey}`;
+    const region = "us-east-1";
+    const service = "s3";
+
+    const headers: Record<string, string> = {
+      "Content-Type": "text/markdown",
+    };
+
+    const signedHeaders = await signRequest(
+      "PUT", url, headers, fileBytes, accessKey, secretKey, region, service
+    );
+
+    const putRes = await fetch(url, {
+      method: "PUT",
+      headers: signedHeaders,
+      body: fileBytes,
+    });
+
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      console.error("Filebase upload failed:", putRes.status, errText);
       return jsonRes({ error: "IPFS upload failed", details: errText }, 500);
     }
 
-    const pinataData = await pinataRes.json();
-    const cid = pinataData?.data?.cid;
-
+    const cid = putRes.headers.get("x-amz-meta-cid");
     if (!cid) {
-      console.error("No CID in Pinata response:", JSON.stringify(pinataData));
-      return jsonRes({ error: "No CID returned from IPFS", details: JSON.stringify(pinataData) }, 500);
+      console.error("No CID in Filebase response. Headers:", JSON.stringify([...putRes.headers.entries()]));
+      return jsonRes({ error: "No CID returned from IPFS" }, 500);
+>>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec
     }
 
     return jsonRes({ ipfsCid: cid, name: file.name, size: file.size });

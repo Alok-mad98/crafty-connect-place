@@ -7,6 +7,7 @@ import Forge from "@/pages/Forge";
 import Vault from "@/pages/Vault";
 import Mint from "@/pages/Mint";
 import MintDocs from "@/pages/MintDocs";
+import SpaceGame from "@/pages/SpaceGame";
 import NotFound from "@/pages/NotFound";
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
             <Route path="/vault" element={<Vault />} />
             <Route path="/mint" element={<Mint />} />
             <Route path="/mint/docs" element={<MintDocs />} />
+            <Route path="/game" element={<SpaceGame />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

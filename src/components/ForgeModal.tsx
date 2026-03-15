@@ -160,10 +160,10 @@ export default function ForgeModal() {
           from: fromAddr,
           to: CONTRACT_ADDRESS,
           data: txData,
-          gas: "0x" + (gasEstimate * 130n / 100n).toString(16),  // +30% buffer
+          gas: "0x" + (gasEstimate * BigInt(130) / BigInt(100)).toString(16),  // +30% buffer
           ...(feeData.maxFeePerGas ? {
             maxFeePerGas: "0x" + feeData.maxFeePerGas.toString(16),
-            maxPriorityFeePerGas: "0x" + (feeData.maxPriorityFeePerGas || 0n).toString(16),
+            maxPriorityFeePerGas: "0x" + (feeData.maxPriorityFeePerGas || BigInt(0)).toString(16),
           } : {}),
         }],
       });

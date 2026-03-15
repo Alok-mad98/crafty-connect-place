@@ -321,12 +321,16 @@ async function handleState(_req: Request): Promise<Response> {
   try {
     const contract = getContract();
     const totalMinted = Number(await contract.totalMinted());
-    const mintActive = await contract.mintActive();
     const ethPrice = await getEthPriceUsd();
+
+    // Read mintActive from DB (set by admin toggle), fall back to contract
+    const supabase = getSupabase();
+    const { data: configData } = await supabase
+      .from("mint_config").select("value").eq("key", "mint_active").maybeSingle();
+    const mintActive = configData ? configData.value === "true" : await contract.mintActive();
     const mintPriceWei = usdToWei(MINT_PRICE_USD, ethPrice).toString();
     const mintPriceEth = (MINT_PRICE_USD / ethPrice).toFixed(6);
 
-    const supabase = getSupabase();
     const { data: recentMints } = await supabase
       .from("mint_ledger")
       .select("token_id, wallet, tx_hash, free, created_at")
@@ -376,7 +380,10 @@ async function handleAdminToggle(req: Request): Promise<Response> {
   }
 
   const supabase = getSupabase();
-  await supabase.from("mint_config").update({ value: String(active) }).eq("key", "mint_active");
+  await supabase.from("mint_config").upsert(
+    { key: "mint_active", value: String(active) },
+    { onConflict: "key" }
+  );
 
   return json({ success: true, mintActive: active });
 }
