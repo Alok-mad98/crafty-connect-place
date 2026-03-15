@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════
-   NEXUS NODE — SPACE DEFENDER v2
-   Ship selection, boss fights, animated pickups & power-ups,
-   pause, engine effects, and GTD claim system.
+   NEXUS NODE — SPACE DEFENDER v3
+   Character select → Ship select → Play
+   HUD with UI panels, improved power-ups, 5 lives
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ─── API ─── */
@@ -25,21 +25,40 @@ const BG_TILE_H = 360;
 const PLAYER_SIZE = 56;
 const PLAYER_SPEED = 6;
 const BULLET_SPEED = 10;
+const MAX_LIVES = 5;
 
 /* ─── Pickup Config ─── */
-const PICKUP_DROP_CHANCE = 0.15;    // 15 % from regular kills
-const PICKUP_BOSS_DROP = true;      // always from bosses
+const PICKUP_DROP_CHANCE = 0.15;
 const PICKUP_FALL_SPEED = 1.4;
-const PICKUP_FRAMES = 15;           // all Void pickup spritesheets = 15 frames
-const PICKUP_RENDER_SIZE = 36;
-const POWER_DURATION = 480;         // ~8 s at 60 fps
-const SHIELD_DURATION = 300;        // ~5 s
+const PICKUP_FRAMES = 15;
+const PICKUP_RENDER_SIZE = 44;     // Bigger, more visible
+const POWER_DURATION = 480;        // ~8 s at 60 fps
+const SHIELD_DURATION = 600;       // ~10 s at 60 fps
 
 const PICKUP_TYPES = [
   { type: "shield" as const, img: "pickup-shield",  label: "SHIELD",  color: "#44ccff", duration: SHIELD_DURATION },
   { type: "speed"  as const, img: "pickup-speed",   label: "SPEED",   color: "#44ff44", duration: POWER_DURATION },
   { type: "weapon" as const, img: "pickup-weapon",  label: "POWER",   color: "#ff8844", duration: POWER_DURATION },
 ];
+
+/* ═══════════════ CHARACTER CONFIGS ═══════════════ */
+const CHARACTER_CONFIGS = [
+  { id: "ranger",   name: "RANGER",    row: 0, color: "#00ccff", desc: "Balanced fighter pilot" },
+  { id: "scout",    name: "SCOUT",     row: 1, color: "#44ff44", desc: "Quick reflexes, fast hands" },
+  { id: "mage",     name: "MAGE",      row: 2, color: "#cc66ff", desc: "Energy manipulation expert" },
+  { id: "warden",   name: "WARDEN",    row: 3, color: "#ff8800", desc: "Heavy armor specialist" },
+  { id: "phantom",  name: "PHANTOM",   row: 4, color: "#ff3366", desc: "Stealth ops veteran" },
+  { id: "sage",     name: "SAGE",      row: 5, color: "#66ffcc", desc: "Ancient tech researcher" },
+  { id: "vanguard", name: "VANGUARD",  row: 6, color: "#ffcc00", desc: "Frontline assault leader" },
+  { id: "nomad",    name: "NOMAD",     row: 7, color: "#ff6688", desc: "Deep space wanderer" },
+  { id: "cipher",   name: "CIPHER",    row: 8, color: "#8888ff", desc: "Code-breaking tactician" },
+  { id: "blaze",    name: "BLAZE",     row: 9, color: "#ff4400", desc: "Explosive ordnance master" },
+];
+
+// Sprite sheet: 5 cols × 11 rows of 8×8 sprites. First frame per row = idle portrait.
+const CHAR_SPRITE_COLS = 5;
+const CHAR_SPRITE_SIZE = 8; // px in spritesheet
+const CHAR_RENDER_SIZE = 48; // 8 * 6 = 48px scaled up
 
 /* ═══════════════ SHIP CONFIGS ═══════════════ */
 const SHIP_CONFIGS = [
@@ -102,7 +121,8 @@ interface Enemy    { x: number; y: number; tier: number; hp: number; speed: numb
 interface Boss     { x: number; y: number; hp: number; maxHp: number; cfg: number; dx: number; phase: "enter"|"fight"|"die"; shootTimer: number; hitFlash: number; deathTimer: number; }
 interface Particle { x: number; y: number; dx: number; dy: number; life: number; color: string; size: number; }
 interface Pickup   { x: number; y: number; type: "shield"|"speed"|"weapon"; }
-type Screen = "menu" | "select" | "playing" | "paused" | "gameover" | "won";
+interface FloatingText { x: number; y: number; text: string; color: string; life: number; }
+type Screen = "menu" | "charselect" | "select" | "playing" | "paused" | "gameover" | "won";
 
 /* ═══════════════ ASSET KEYS ═══════════════ */
 function getAllAssetKeys(): string[] {
@@ -124,9 +144,10 @@ function getAllAssetKeys(): string[] {
 export default function SpaceGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [screen, setScreen] = useState<Screen>("menu");
+  const [selectedChar, setSelectedChar] = useState(0);
   const [selectedShip, setSelectedShip] = useState(0);
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(MAX_LIVES);
   const [slotsLeft, setSlotsLeft] = useState(MAX_GTD_SLOTS);
   const [twitter, setTwitter] = useState("");
   const [wallet, setWallet] = useState("");
@@ -138,6 +159,8 @@ export default function SpaceGame() {
   const [bossName, setBossName] = useState("");
 
   const assets = useRef<Record<string, HTMLImageElement>>({});
+  const charSpriteSheet = useRef<HTMLImageElement | null>(null);
+  const uiSpriteSheet = useRef<HTMLImageElement | null>(null);
 
   /* ─── Game state ref ─── */
   const g = useRef({
@@ -146,10 +169,11 @@ export default function SpaceGame() {
     enemies: [] as Enemy[],
     particles: [] as Particle[],
     pickups: [] as Pickup[],
+    floatingTexts: [] as FloatingText[],
     boss: null as Boss | null,
     bossesDefeated: [] as number[],
     keys: {} as Record<string, boolean>,
-    score: 0, lives: 3,
+    score: 0, lives: MAX_LIVES,
     lastFire: 0, lastSpawn: 0,
     running: false, paused: false,
     touchX: null as number | null,
@@ -158,7 +182,9 @@ export default function SpaceGame() {
     bgY1: 0, bgY2: 0, bgY3: 0,
     frame: 0,
     shipIdx: 0,
+    charIdx: 0,
     invincible: 0,
+    screenFlash: 0,
     // Power-up timers (frames remaining)
     powerShield: 0,
     powerSpeed: 0,
@@ -169,12 +195,28 @@ export default function SpaceGame() {
   useEffect(() => {
     const keys = getAllAssetKeys();
     let loaded = 0;
+    const total = keys.length + 2; // +2 for character & UI spritesheets
+    
+    const checkDone = () => { if (loaded >= total) setAssetsReady(true); };
+    
     keys.forEach(key => {
       const img = new Image();
       img.src = `/game/${key}.png`;
-      img.onload = () => { assets.current[key] = img; loaded++; if (loaded >= keys.length) setAssetsReady(true); };
-      img.onerror = () => { loaded++; if (loaded >= keys.length) setAssetsReady(true); };
+      img.onload = () => { assets.current[key] = img; loaded++; checkDone(); };
+      img.onerror = () => { loaded++; checkDone(); };
     });
+    
+    // Load character spritesheet
+    const charImg = new Image();
+    charImg.src = "/game/SpaceShooterAssetPack_Characters.png";
+    charImg.onload = () => { charSpriteSheet.current = charImg; loaded++; checkDone(); };
+    charImg.onerror = () => { loaded++; checkDone(); };
+    
+    // Load UI spritesheet
+    const uiImg = new Image();
+    uiImg.src = "/game/SpaceShooterAssetPack_IU.png";
+    uiImg.onload = () => { uiSpriteSheet.current = uiImg; loaded++; checkDone(); };
+    uiImg.onerror = () => { loaded++; checkDone(); };
   }, []);
 
   /* ─── Fetch GTD slots ─── */
@@ -220,6 +262,10 @@ export default function SpaceGame() {
     g.current.pickups.push({ x, y, type: ptype.type });
   }
 
+  function addFloatingText(x: number, y: number, text: string, color: string) {
+    g.current.floatingTexts.push({ x, y, text, color, life: 60 });
+  }
+
   /* ─── Draw helpers ─── */
   function drawBg(ctx: CanvasRenderingContext2D, img: HTMLImageElement|undefined, yOff: number) {
     if (!img) return;
@@ -256,11 +302,48 @@ export default function SpaceGame() {
 
   function drawPickupSprite(ctx: CanvasRenderingContext2D, img: HTMLImageElement|undefined, x: number, y: number, frame: number) {
     if (!img) return;
-    const fh = img.height; // 32
-    const fw = fh;          // each frame is 32x32
+    const fh = img.height;
+    const fw = fh;
     const fi = Math.floor(frame / 4) % PICKUP_FRAMES;
     ctx.save(); ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, fi*fw, 0, fw, fh, x - PICKUP_RENDER_SIZE/2, y - PICKUP_RENDER_SIZE/2, PICKUP_RENDER_SIZE, PICKUP_RENDER_SIZE);
+    ctx.restore();
+  }
+
+  function drawCharPortrait(ctx: CanvasRenderingContext2D, charIdx: number, x: number, y: number, size: number) {
+    const sheet = charSpriteSheet.current;
+    if (!sheet) return;
+    const sx = 0; // first frame = idle
+    const sy = charIdx * CHAR_SPRITE_SIZE;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sheet, sx, sy, CHAR_SPRITE_SIZE, CHAR_SPRITE_SIZE, x, y, size, size);
+    ctx.restore();
+  }
+
+  function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, filled: boolean) {
+    ctx.save();
+    ctx.translate(x + size/2, y + size/2);
+    const s = size / 16;
+    ctx.beginPath();
+    ctx.moveTo(0, 2*s);
+    ctx.bezierCurveTo(-1*s, -3*s, -8*s, -3*s, -8*s, 2*s);
+    ctx.bezierCurveTo(-8*s, 6*s, 0, 10*s, 0, 12*s);
+    ctx.bezierCurveTo(0, 10*s, 8*s, 6*s, 8*s, 2*s);
+    ctx.bezierCurveTo(8*s, -3*s, 1*s, -3*s, 0, 2*s);
+    ctx.closePath();
+    if (filled) {
+      ctx.fillStyle = "#ff4444";
+      ctx.fill();
+      ctx.fillStyle = "#ff8888";
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(-3*s, -1*s, 2*s, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#222";
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -269,14 +352,16 @@ export default function SpaceGame() {
     const gs = g.current;
     gs.px = GW / 2; gs.py = GH - 60;
     gs.bullets = []; gs.enemies = []; gs.particles = []; gs.pickups = [];
+    gs.floatingTexts = [];
     gs.boss = null; gs.bossesDefeated = [];
-    gs.score = 0; gs.lives = 3; gs.invincible = 90;
+    gs.score = 0; gs.lives = MAX_LIVES; gs.invincible = 90;
     gs.powerShield = 0; gs.powerSpeed = 0; gs.powerWeapon = 0;
+    gs.screenFlash = 0;
     gs.lastFire = 0; gs.lastSpawn = 0; gs.shakeTime = 0;
     gs.bgY1 = 0; gs.bgY2 = 0; gs.bgY3 = 0; gs.frame = 0;
     gs.shipIdx = shipIdx; gs.paused = false;
     gs.running = true;
-    setScore(0); setLives(3); setBossName("");
+    setScore(0); setLives(MAX_LIVES); setBossName("");
     setScreen("playing");
   }, []);
 
@@ -339,6 +424,7 @@ export default function SpaceGame() {
         }
         gs.px = Math.max(24, Math.min(GW - 24, gs.px));
         if (gs.invincible > 0) gs.invincible--;
+        if (gs.screenFlash > 0) gs.screenFlash--;
 
         /* ── Power-up timers ── */
         if (gs.powerShield > 0) gs.powerShield--;
@@ -382,12 +468,11 @@ export default function SpaceGame() {
             if (boss.deathTimer % 5 === 0) explode(boss.x + (Math.random()-0.5)*bcfg.size, boss.y + (Math.random()-0.5)*bcfg.size, bcfg.color, 6);
             if (boss.deathTimer >= 40) {
               bigExplode(boss.x, boss.y, bcfg.color);
-              // Boss always drops pickup
               spawnPickup(boss.x, boss.y);
               gs.bossesDefeated.push(boss.cfg);
               gs.score += bcfg.reward;
               setScore(gs.score);
-              if (gs.lives < 3) { gs.lives++; setLives(gs.lives); }
+              if (gs.lives < MAX_LIVES) { gs.lives++; setLives(gs.lives); }
               gs.boss = null; setBossName("");
               if (gs.score >= WIN_SCORE) { gs.running = false; setScreen("won"); return; }
             }
@@ -454,7 +539,6 @@ export default function SpaceGame() {
               if (e.hp <= 0) {
                 explode(e.x, e.y, et.color, 14);
                 gs.enemies.splice(ei, 1);
-                // Pickup drop chance
                 if (Math.random() < PICKUP_DROP_CHANCE) spawnPickup(e.x, e.y);
                 gs.score += POINTS_PER_KILL; setScore(gs.score);
                 if (gs.score >= WIN_SCORE) { gs.running = false; setScreen("won"); return; }
@@ -476,7 +560,6 @@ export default function SpaceGame() {
             }
           }
         } else if (isShielded) {
-          // Shield absorbs bullets
           for (let bi = gs.bullets.length - 1; bi >= 0; bi--) {
             const b = gs.bullets[bi]; if (!b.enemy) continue;
             if (Math.abs(b.x - gs.px) < 28 && Math.abs(b.y - gs.py) < 28) {
@@ -500,17 +583,25 @@ export default function SpaceGame() {
         /* ── Update pickups ── */
         gs.pickups = gs.pickups.filter(p => {
           p.y += PICKUP_FALL_SPEED;
-          // Collect check
-          if (Math.abs(p.x - gs.px) < 28 && Math.abs(p.y - gs.py) < 28) {
-            // Apply power-up
+          if (Math.abs(p.x - gs.px) < 30 && Math.abs(p.y - gs.py) < 30) {
             const cfg = PICKUP_TYPES.find(t => t.type === p.type)!;
             if (p.type === "shield") gs.powerShield = cfg.duration;
             else if (p.type === "speed") gs.powerSpeed = cfg.duration;
             else if (p.type === "weapon") gs.powerWeapon = cfg.duration;
-            explode(p.x, p.y, cfg.color, 8);
+            // Collection effects
+            explode(p.x, p.y, cfg.color, 12);
+            gs.screenFlash = 8; // white flash
+            addFloatingText(gs.px, gs.py - 30, `+${cfg.label}!`, cfg.color);
             return false;
           }
           return p.y < GH + 40;
+        });
+
+        /* ── Floating texts ── */
+        gs.floatingTexts = gs.floatingTexts.filter(ft => {
+          ft.y -= 1.2;
+          ft.life--;
+          return ft.life > 0;
         });
 
         /* ── Particles ── */
@@ -565,31 +656,50 @@ export default function SpaceGame() {
           ctx.globalAlpha = 0.3; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(boss.x, boss.y, bcfg.size/2, 0, Math.PI*2); ctx.fill();
         } else { drawSprite(ctx, bi, boss.x, boss.y, bcfg.size, true); }
         ctx.globalAlpha = 1;
-        // Boss HP bar
+        // Boss HP bar with panel frame
         if (boss.phase !== "die") {
-          const bw = bcfg.size + 20, bh = 6, bx = boss.x - bw/2, by = boss.y - bcfg.size/2 - 16;
+          const bw = bcfg.size + 40, bh = 8, bx = boss.x - bw/2, by = boss.y - bcfg.size/2 - 20;
+          // Panel background
+          ctx.fillStyle = "#0a0a1a"; ctx.fillRect(bx-2, by-2, bw+4, bh+4);
+          ctx.strokeStyle = bcfg.color + "44"; ctx.lineWidth = 1; ctx.strokeRect(bx-2, by-2, bw+4, bh+4);
           ctx.fillStyle = "#1a1a2e"; ctx.fillRect(bx, by, bw, bh);
           const pct = boss.hp / boss.maxHp;
           const gr = ctx.createLinearGradient(bx, 0, bx+bw*pct, 0); gr.addColorStop(0, bcfg.color); gr.addColorStop(1, "#fff");
           ctx.fillStyle = gr; ctx.fillRect(bx, by, bw*pct, bh);
-          ctx.strokeStyle = bcfg.color + "66"; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
-          ctx.font = "bold 9px monospace"; ctx.fillStyle = bcfg.color; ctx.textAlign = "center"; ctx.fillText(bcfg.name, boss.x, by - 4);
+          ctx.font = "bold 9px monospace"; ctx.fillStyle = bcfg.color; ctx.textAlign = "center"; ctx.fillText(bcfg.name, boss.x, by - 5);
         }
       }
 
-      /* ── Pickups (animated) ── */
+      /* ── Pickups (animated with pulsing glow ring) ── */
       for (const p of gs.pickups) {
         const pcfg = PICKUP_TYPES.find(t => t.type === p.type)!;
         const pimg = assets.current[pcfg.img];
+        // Pulsing glow ring
+        const pulseScale = 1.0 + 0.3 * Math.sin(gs.frame * 0.08);
+        const ringRadius = PICKUP_RENDER_SIZE * 0.6 * pulseScale;
+        ctx.globalAlpha = 0.2 + 0.15 * Math.sin(gs.frame * 0.1);
+        ctx.strokeStyle = pcfg.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2); ctx.stroke();
         // Glow behind pickup
         ctx.globalAlpha = 0.3 + 0.15 * Math.sin(gs.frame * 0.1);
         ctx.fillStyle = pcfg.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, PICKUP_RENDER_SIZE * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, PICKUP_RENDER_SIZE * 0.5, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
-        drawPickupSprite(ctx, pimg, p.x, p.y, gs.frame);
+        // Scale-up pulsing animation on sprite
+        const spritePulse = 1.0 + 0.15 * Math.sin(gs.frame * 0.12);
+        const pSize = PICKUP_RENDER_SIZE * spritePulse;
+        if (pimg) {
+          const fh = pimg.height;
+          const fw = fh;
+          const fi = Math.floor(gs.frame / 4) % PICKUP_FRAMES;
+          ctx.save(); ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(pimg, fi*fw, 0, fw, fh, p.x - pSize/2, p.y - pSize/2, pSize, pSize);
+          ctx.restore();
+        }
         // Label
-        ctx.font = "bold 7px monospace"; ctx.fillStyle = pcfg.color; ctx.textAlign = "center";
-        ctx.fillText(pcfg.label, p.x, p.y + PICKUP_RENDER_SIZE/2 + 8);
+        ctx.font = "bold 8px monospace"; ctx.fillStyle = pcfg.color; ctx.textAlign = "center";
+        ctx.fillText(pcfg.label, p.x, p.y + PICKUP_RENDER_SIZE/2 + 10);
       }
 
       /* ── Player ── */
@@ -598,43 +708,54 @@ export default function SpaceGame() {
       // Engine idle
       const eiImg = assets.current[ship.engineIdle];
       if (eiImg) drawEngineAnim(ctx, eiImg, gs.px, gs.py, PLAYER_SIZE, ship.engineIdleFrames, gs.frame, false);
-      // Speed boost trail
+      // Speed boost trail (more visible)
       if (gs.powerSpeed > 0) {
-        ctx.globalAlpha = 0.25 * playerAlpha;
+        ctx.globalAlpha = 0.35 * playerAlpha;
         ctx.fillStyle = "#44ff44";
-        for (let i = 1; i <= 3; i++) {
-          ctx.fillRect(gs.px - 4, gs.py + 20 + i*8, 3, 6 + Math.random()*4);
-          ctx.fillRect(gs.px + 1, gs.py + 20 + i*8, 3, 6 + Math.random()*4);
+        for (let i = 1; i <= 5; i++) {
+          const trailW = 4 + Math.random()*3;
+          ctx.fillRect(gs.px - 5, gs.py + 20 + i*7, trailW, 8 + Math.random()*5);
+          ctx.fillRect(gs.px + 1, gs.py + 20 + i*7, trailW, 8 + Math.random()*5);
         }
         ctx.globalAlpha = playerAlpha;
       }
-      // Base (damage state)
-      const dmgSuf = gs.lives >= 3 ? "" : gs.lives === 2 ? "-dmg1" : gs.lives === 1 ? "-dmg2" : "-dmg3";
+      // Base (damage state) - adjusted for 5 lives
+      const dmgSuf = gs.lives >= 4 ? "" : gs.lives === 3 ? "-dmg1" : gs.lives === 2 ? "-dmg2" : "-dmg3";
       drawSprite(ctx, assets.current["player-base" + dmgSuf] || assets.current["player-base"], gs.px, gs.py, PLAYER_SIZE, false);
       // Engine overlay
       drawSprite(ctx, assets.current[ship.engine], gs.px, gs.py, PLAYER_SIZE, false);
-      // Weapon power-up glow
+      // Weapon power-up glow (brighter)
       if (gs.powerWeapon > 0) {
-        ctx.globalAlpha = 0.15 + 0.1 * Math.sin(gs.frame * 0.15);
+        ctx.globalAlpha = 0.2 + 0.15 * Math.sin(gs.frame * 0.15);
         ctx.fillStyle = "#ff8844";
-        ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.65, 0, Math.PI * 2); ctx.fill();
+        // Extra glow ring
+        ctx.strokeStyle = "#ffaa66";
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(gs.frame * 0.2);
+        ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.75, 0, Math.PI * 2); ctx.stroke();
       }
-      // Shield visual
+      // Shield visual (thicker aura)
       if (gs.powerShield > 0) {
         const shieldImg = assets.current["player-shield-inv"];
         if (shieldImg) {
-          const sf = shieldImg.height; // frame size (64)
+          const sf = shieldImg.height;
           const sFrames = Math.round(shieldImg.width / sf);
           const si = Math.floor(gs.frame / 4) % sFrames;
-          ctx.globalAlpha = 0.7 + 0.2 * Math.sin(gs.frame * 0.08);
+          ctx.globalAlpha = 0.75 + 0.2 * Math.sin(gs.frame * 0.08);
           ctx.save(); ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(shieldImg, si * sf, 0, sf, sf, gs.px - PLAYER_SIZE*0.55, gs.py - PLAYER_SIZE*0.55, PLAYER_SIZE*1.1, PLAYER_SIZE*1.1);
+          // Draw slightly larger for thicker look
+          ctx.drawImage(shieldImg, si * sf, 0, sf, sf, gs.px - PLAYER_SIZE*0.6, gs.py - PLAYER_SIZE*0.6, PLAYER_SIZE*1.2, PLAYER_SIZE*1.2);
           ctx.restore();
+          // Extra aura ring
+          ctx.strokeStyle = "#44ccff";
+          ctx.lineWidth = 1.5;
+          ctx.globalAlpha = 0.3 + 0.2 * Math.sin(gs.frame * 0.12);
+          ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.65, 0, Math.PI * 2); ctx.stroke();
         } else {
-          // Fallback circle
-          ctx.strokeStyle = "#44ccff"; ctx.lineWidth = 2;
+          ctx.strokeStyle = "#44ccff"; ctx.lineWidth = 3;
           ctx.globalAlpha = 0.5 + 0.3 * Math.sin(gs.frame * 0.1);
-          ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.5, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(gs.px, gs.py, PLAYER_SIZE * 0.55, 0, Math.PI * 2); ctx.stroke();
         }
       }
       ctx.globalAlpha = 1;
@@ -643,7 +764,7 @@ export default function SpaceGame() {
       const projImg = assets.current[ship.proj];
       for (const b of gs.bullets) {
         if (b.enemy) continue;
-        if (gs.powerWeapon > 0) { ctx.globalAlpha = 0.9; ctx.fillStyle = "#ff8844"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
+        if (gs.powerWeapon > 0) { ctx.globalAlpha = 0.9; ctx.fillStyle = "#ff8844"; ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
         if (projImg) drawProj(ctx, projImg, b.x, b.y, ship.projSize, ship.projFrames, gs.frame);
         else { ctx.fillStyle = ship.color; ctx.fillRect(b.x-2, b.y-6, 4, 12); }
       }
@@ -666,50 +787,111 @@ export default function SpaceGame() {
       }
       ctx.globalAlpha = 1;
 
-      /* ═══ HUD ═══ */
-      ctx.font = "bold 13px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left";
-      ctx.fillText(`SCORE  ${gs.score}`, 12, 22);
-
-      if (!gs.boss) { const ti = getTier(gs.score); ctx.textAlign = "center"; ctx.fillStyle = ENEMY_TIERS[ti].color; ctx.font = "bold 10px monospace"; ctx.fillText(ENEMY_TIERS[ti].name.toUpperCase(), GW/2, 22); }
-
-      // Lives
-      ctx.textAlign = "right";
-      for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = i < gs.lives ? "#ff4444" : "#222"; ctx.fillRect(GW-16-i*18, 10, 12, 12);
-        if (i < gs.lives) { ctx.fillStyle = "#ff8888"; ctx.fillRect(GW-14-i*18, 12, 4, 4); }
+      /* ── Floating texts ── */
+      for (const ft of gs.floatingTexts) {
+        ctx.globalAlpha = Math.min(1, ft.life / 30);
+        ctx.font = "bold 12px monospace";
+        ctx.fillStyle = ft.color;
+        ctx.textAlign = "center";
+        ctx.fillText(ft.text, ft.x, ft.y);
       }
+      ctx.globalAlpha = 1;
+
+      /* ── Screen flash (collection effect) ── */
+      if (gs.screenFlash > 0) {
+        ctx.globalAlpha = gs.screenFlash / 12;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, GW, GH);
+        ctx.globalAlpha = 1;
+      }
+
+      /* ═══ HUD with panels ═══ */
+      // HUD background bar
+      ctx.fillStyle = "rgba(6,6,18,0.75)";
+      ctx.fillRect(0, 0, GW, 58);
+      ctx.strokeStyle = "#1a1a2e";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, 58); ctx.lineTo(GW, 58); ctx.stroke();
+
+      // Character portrait (top-left)
+      const portraitSize = 28;
+      const portraitX = 6;
+      const portraitY = 4;
+      ctx.fillStyle = "#0a0a1a";
+      ctx.fillRect(portraitX-1, portraitY-1, portraitSize+2, portraitSize+2);
+      ctx.strokeStyle = CHARACTER_CONFIGS[gs.charIdx]?.color || "#444";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(portraitX-1, portraitY-1, portraitSize+2, portraitSize+2);
+      drawCharPortrait(ctx, gs.charIdx, portraitX, portraitY, portraitSize);
+
+      // Hearts (next to portrait)
+      const heartStartX = portraitX + portraitSize + 6;
+      const heartY = 6;
+      const heartSize = 10;
+      for (let i = 0; i < MAX_LIVES; i++) {
+        drawHeart(ctx, heartStartX + i * (heartSize + 3), heartY, heartSize, i < gs.lives);
+      }
+
+      // Score with panel background
+      ctx.fillStyle = "#0a0a1a";
+      ctx.fillRect(heartStartX, 22, 100, 14);
+      ctx.strokeStyle = "#1a1a2e";
+      ctx.strokeRect(heartStartX, 22, 100, 14);
+      ctx.font = "bold 10px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left";
+      ctx.fillText(`SCORE ${gs.score}`, heartStartX + 4, 33);
+
+      // Enemy tier / boss name (center top)
+      if (!gs.boss) {
+        const ti = getTier(gs.score);
+        ctx.textAlign = "center"; ctx.fillStyle = ENEMY_TIERS[ti].color;
+        ctx.font = "bold 9px monospace";
+        ctx.fillText(ENEMY_TIERS[ti].name.toUpperCase(), GW/2, 52);
+      }
+
+      // Ship name (right side)
+      ctx.textAlign = "right"; ctx.fillStyle = ship.color + "88"; ctx.font = "8px monospace";
+      ctx.fillText(`${ship.name} / ${ship.weapon.toUpperCase()}`, GW - 8, 12);
 
       // Progress bar
       const pct = Math.min(1, gs.score / WIN_SCORE);
-      ctx.fillStyle = "#1a1a2e"; ctx.fillRect(12, 32, GW-24, 4);
-      const bg = ctx.createLinearGradient(12, 0, 12+(GW-24)*pct, 0); bg.addColorStop(0, "#00ff88"); bg.addColorStop(1, ship.color);
-      ctx.fillStyle = bg; ctx.fillRect(12, 32, (GW-24)*pct, 4);
-      if (pct > 0.01) { ctx.fillStyle = "#fff"; ctx.globalAlpha = 0.6; ctx.fillRect(12+(GW-24)*pct-3, 32, 3, 4); ctx.globalAlpha = 1; }
-      ctx.font = "9px monospace"; ctx.fillStyle = "#555"; ctx.textAlign = "right"; ctx.fillText(`${gs.score}/${WIN_SCORE}`, GW-12, 50);
-      ctx.textAlign = "left"; ctx.fillStyle = ship.color+"88"; ctx.font = "8px monospace"; ctx.fillText(`${ship.name} / ${ship.weapon.toUpperCase()}`, 12, 50);
+      const progY = 42;
+      ctx.fillStyle = "#0a0a1a"; ctx.fillRect(GW - 160, progY, 152, 6);
+      ctx.strokeStyle = "#1a1a2e"; ctx.strokeRect(GW - 160, progY, 152, 6);
+      const bg = ctx.createLinearGradient(GW-160, 0, GW-160+152*pct, 0);
+      bg.addColorStop(0, "#00ff88"); bg.addColorStop(1, ship.color);
+      ctx.fillStyle = bg; ctx.fillRect(GW - 160, progY, 152*pct, 6);
+      ctx.font = "7px monospace"; ctx.fillStyle = "#555"; ctx.textAlign = "right";
+      ctx.fillText(`${gs.score}/${WIN_SCORE}`, GW - 8, progY + 14);
 
-      /* ── Active power-up indicators ── */
-      let piY = 62;
+      /* ── Active power-up indicators (with panel framing) ── */
+      let piY = 64;
+      const piW = 90;
       if (gs.powerShield > 0) {
         const pctS = gs.powerShield / SHIELD_DURATION;
-        ctx.fillStyle = "#44ccff33"; ctx.fillRect(12, piY, 80, 10);
-        ctx.fillStyle = "#44ccff"; ctx.fillRect(12, piY, 80*pctS, 10);
-        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("SHIELD", 14, piY+8);
-        piY += 13;
+        ctx.fillStyle = "#0a0a1a"; ctx.fillRect(8, piY, piW+4, 14);
+        ctx.strokeStyle = "#44ccff33"; ctx.strokeRect(8, piY, piW+4, 14);
+        ctx.fillStyle = "#44ccff33"; ctx.fillRect(10, piY+2, piW, 10);
+        ctx.fillStyle = "#44ccff"; ctx.fillRect(10, piY+2, piW*pctS, 10);
+        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("SHIELD", 12, piY+10);
+        piY += 17;
       }
       if (gs.powerSpeed > 0) {
         const pctSp = gs.powerSpeed / POWER_DURATION;
-        ctx.fillStyle = "#44ff4433"; ctx.fillRect(12, piY, 80, 10);
-        ctx.fillStyle = "#44ff44"; ctx.fillRect(12, piY, 80*pctSp, 10);
-        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("SPEED", 14, piY+8);
-        piY += 13;
+        ctx.fillStyle = "#0a0a1a"; ctx.fillRect(8, piY, piW+4, 14);
+        ctx.strokeStyle = "#44ff4433"; ctx.strokeRect(8, piY, piW+4, 14);
+        ctx.fillStyle = "#44ff4433"; ctx.fillRect(10, piY+2, piW, 10);
+        ctx.fillStyle = "#44ff44"; ctx.fillRect(10, piY+2, piW*pctSp, 10);
+        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("SPEED", 12, piY+10);
+        piY += 17;
       }
       if (gs.powerWeapon > 0) {
         const pctW = gs.powerWeapon / POWER_DURATION;
-        ctx.fillStyle = "#ff884433"; ctx.fillRect(12, piY, 80, 10);
-        ctx.fillStyle = "#ff8844"; ctx.fillRect(12, piY, 80*pctW, 10);
-        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("POWER", 14, piY+8);
-        piY += 13;
+        ctx.fillStyle = "#0a0a1a"; ctx.fillRect(8, piY, piW+4, 14);
+        ctx.strokeStyle = "#ff884433"; ctx.strokeRect(8, piY, piW+4, 14);
+        ctx.fillStyle = "#ff884433"; ctx.fillRect(10, piY+2, piW, 10);
+        ctx.fillStyle = "#ff8844"; ctx.fillRect(10, piY+2, piW*pctW, 10);
+        ctx.font = "bold 7px monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText("POWER", 12, piY+10);
+        piY += 17;
       }
 
       /* ── Pause indicator ── */
@@ -771,11 +953,50 @@ export default function SpaceGame() {
     finally { setSubmitting(false); }
   }
 
-  /* ═══════════════════ JSX ═══════════════════ */
-  // pixel-art inspired border util
-  const pixBorder = (color: string, selected: boolean) =>
-    `border-2 ${selected ? `border-[${color}] shadow-[0_0_12px_${color}44,inset_0_0_12px_${color}22]` : "border-[#1a1a2e] hover:border-[#2a2a4e]"}`;
+  /* ═══════════════════ CHARACTER SELECT CANVAS ═══════════════════ */
+  const charCanvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (screen !== "charselect") return;
+    const canvas = charCanvasRef.current;
+    if (!canvas || !charSpriteSheet.current) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    
+    // Draw all character portraits
+    const cols = 5;
+    const rows = 2;
+    const cellW = canvas.width / cols;
+    const cellH = canvas.height / rows;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    CHARACTER_CONFIGS.forEach((char, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = col * cellW + cellW / 2;
+      const cy = row * cellH + cellH / 2;
+      
+      // Selection highlight
+      if (i === selectedChar) {
+        ctx.fillStyle = char.color + "22";
+        ctx.fillRect(col * cellW, row * cellH, cellW, cellH);
+        ctx.strokeStyle = char.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(col * cellW + 1, row * cellH + 1, cellW - 2, cellH - 2);
+      }
+      
+      // Portrait
+      drawCharPortrait(ctx, i, cx - CHAR_RENDER_SIZE/2, cy - CHAR_RENDER_SIZE/2 - 6, CHAR_RENDER_SIZE);
+      
+      // Name
+      ctx.font = "bold 8px monospace";
+      ctx.fillStyle = i === selectedChar ? char.color : "#888";
+      ctx.textAlign = "center";
+      ctx.fillText(char.name, cx, cy + CHAR_RENDER_SIZE/2 + 4);
+    });
+  }, [screen, selectedChar]);
 
+  /* ═══════════════════ JSX ═══════════════════ */
   return (
     <div className="min-h-screen px-4 py-10 md:py-16 bg-bg flex flex-col items-center">
       <div className="max-w-[520px] w-full">
@@ -804,13 +1025,13 @@ export default function SpaceGame() {
               <div className="w-2 h-2 rounded-full bg-[#ff5f57]" />
               <div className="w-2 h-2 rounded-full bg-[#febc2e]" />
               <div className="w-2 h-2 rounded-full bg-[#28c840]" />
-              <span className="font-mono text-[9px] tracking-widest text-fg-dim ml-2">SPACE DEFENDER</span>
+              <span className="font-mono text-[9px] tracking-widest text-fg-dim ml-2">SPACE DEFENDER v3</span>
             </div>
             {(screen === "playing" || screen === "paused") && (
               <div className="flex items-center gap-2 font-mono text-[9px]">
                 <span className="text-fg-muted">SCORE <span className="text-fg">{score}</span></span>
                 <span className="text-fg-dim">|</span>
-                <span className="text-fg-muted">LIVES <span className="text-[#ff4444]">{"■".repeat(Math.max(0, lives))}</span></span>
+                <span className="text-fg-muted">LIVES <span className="text-[#ff4444]">{"♥".repeat(Math.max(0, lives))}<span className="text-[#333]">{"♥".repeat(Math.max(0, MAX_LIVES - lives))}</span></span></span>
                 {bossName && <><span className="text-fg-dim">|</span><span className="text-[#ff00ff] animate-pulse text-[8px]">BOSS</span></>}
                 <span className="text-fg-dim">|</span>
                 <button onClick={togglePause} className="text-fg-dim hover:text-fg cursor-pointer text-[8px] tracking-widest">{screen === "paused" ? "▶ PLAY" : "❚❚ PAUSE"}</button>
@@ -841,10 +1062,10 @@ export default function SpaceGame() {
                 {/* Feature pills */}
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                   {[
+                    { label: "10 Characters", color: "#cc66ff" },
                     { label: "4 Ships", color: "#00ccff" },
                     { label: "5 Bosses", color: "#ff00ff" },
                     { label: "Power-ups", color: "#44ff44" },
-                    { label: "10 Enemy Types", color: "#ff8800" },
                   ].map(f => (
                     <span key={f.label} className="font-mono text-[8px] tracking-wider px-2 py-1 border" style={{ borderColor: f.color + "44", color: f.color }}>{f.label}</span>
                   ))}
@@ -852,9 +1073,9 @@ export default function SpaceGame() {
                 {!assetsReady ? (
                   <p className="font-mono text-[10px] text-fg-dim animate-pulse">LOADING ASSETS...</p>
                 ) : (
-                  <button onClick={() => setScreen("select")}
+                  <button onClick={() => setScreen("charselect")}
                     className="font-mono text-[12px] tracking-widest border-2 border-accent text-accent px-10 py-3 hover:bg-accent/10 transition-colors cursor-pointer mb-3">
-                    SELECT SHIP
+                    CHOOSE CHARACTER
                   </button>
                 )}
                 <div className="mt-4 space-y-1 text-center">
@@ -864,11 +1085,72 @@ export default function SpaceGame() {
               </motion.div>
             )}
 
+            {/* Character Selection */}
+            {screen === "charselect" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 flex flex-col items-center bg-[#060612]/95 z-10 overflow-y-auto" style={{ top: 32 }}>
+                <div className="py-6 px-4 w-full max-w-[440px]">
+                  <p className="font-mono text-[9px] tracking-[0.3em] text-fg-dim text-center mb-1">CHOOSE YOUR</p>
+                  <h2 className="text-xl font-bold font-mono text-fg text-center mb-5 tracking-tight">CHARACTER</h2>
+
+                  <div className="grid grid-cols-5 gap-2 mb-5">
+                    {CHARACTER_CONFIGS.map((char, i) => (
+                      <button key={char.id} onClick={() => setSelectedChar(i)}
+                        className={`relative p-2 text-center transition-all cursor-pointer bg-[#0a0a1a] ${
+                          selectedChar === i ? "border-2" : "border border-[#1a1a2e] hover:border-[#2a2a4e]"
+                        }`}
+                        style={selectedChar === i ? { borderColor: char.color, boxShadow: `0 0 12px ${char.color}33` } : {}}>
+                        {/* Character portrait via canvas would be complex in JSX, use colored placeholder */}
+                        <div className="mx-auto mb-1.5 relative" style={{ width: CHAR_RENDER_SIZE, height: CHAR_RENDER_SIZE }}>
+                          <canvas
+                            width={CHAR_SPRITE_SIZE}
+                            height={CHAR_SPRITE_SIZE}
+                            style={{ width: CHAR_RENDER_SIZE, height: CHAR_RENDER_SIZE, imageRendering: "pixelated" }}
+                            ref={el => {
+                              if (el && charSpriteSheet.current) {
+                                const c = el.getContext("2d");
+                                if (c) {
+                                  c.imageSmoothingEnabled = false;
+                                  c.clearRect(0, 0, CHAR_SPRITE_SIZE, CHAR_SPRITE_SIZE);
+                                  c.drawImage(charSpriteSheet.current, 0, i * CHAR_SPRITE_SIZE, CHAR_SPRITE_SIZE, CHAR_SPRITE_SIZE, 0, 0, CHAR_SPRITE_SIZE, CHAR_SPRITE_SIZE);
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                        <p className="font-mono text-[7px] font-bold tracking-wider" style={{ color: selectedChar === i ? char.color : "#888" }}>{char.name}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Selected character info */}
+                  <div className="border border-[#1a1a2e] bg-[#0a0a14] p-3 mb-5 text-center">
+                    <p className="font-mono text-[11px] font-bold tracking-wider mb-1" style={{ color: CHARACTER_CONFIGS[selectedChar].color }}>
+                      {CHARACTER_CONFIGS[selectedChar].name}
+                    </p>
+                    <p className="font-mono text-[9px] text-fg-dim">{CHARACTER_CONFIGS[selectedChar].desc}</p>
+                  </div>
+
+                  <div className="text-center">
+                    <button onClick={() => { g.current.charIdx = selectedChar; setScreen("select"); }}
+                      className="font-mono text-[12px] tracking-widest border-2 px-10 py-3 transition-all cursor-pointer hover:shadow-lg"
+                      style={{ borderColor: CHARACTER_CONFIGS[selectedChar].color, color: CHARACTER_CONFIGS[selectedChar].color }}>
+                      SELECT {CHARACTER_CONFIGS[selectedChar].name}
+                    </button>
+                    <p className="font-mono text-[7px] text-fg-dim mt-2">Next: choose your ship</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Ship Selection */}
             {screen === "select" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 flex flex-col items-center bg-[#060612]/95 z-10 overflow-y-auto" style={{ top: 32 }}>
                 <div className="py-6 px-4 w-full max-w-[440px]">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <p className="font-mono text-[9px] tracking-[0.3em] text-fg-dim text-center">PILOT: <span style={{ color: CHARACTER_CONFIGS[selectedChar].color }}>{CHARACTER_CONFIGS[selectedChar].name}</span></p>
+                  </div>
                   <p className="font-mono text-[9px] tracking-[0.3em] text-fg-dim text-center mb-1">CHOOSE YOUR</p>
                   <h2 className="text-xl font-bold font-mono text-fg text-center mb-5 tracking-tight">SHIP</h2>
 
@@ -914,17 +1196,21 @@ export default function SpaceGame() {
                         </div>
                       ))}
                     </div>
-                    <p className="font-mono text-[7px] text-fg-dim text-center mt-1.5">Dropped by enemies — collect to activate</p>
+                    <p className="font-mono text-[7px] text-fg-dim text-center mt-1.5">Shield lasts 10s • Dropped by enemies</p>
                   </div>
 
-                  <div className="text-center">
+                  <div className="flex items-center justify-center gap-3">
+                    <button onClick={() => setScreen("charselect")}
+                      className="font-mono text-[10px] tracking-widest border border-border text-fg-dim px-5 py-2.5 hover:bg-white/5 transition-colors cursor-pointer">
+                      ← BACK
+                    </button>
                     <button onClick={() => startGame(selectedShip)}
                       className="font-mono text-[12px] tracking-widest border-2 px-10 py-3 transition-all cursor-pointer hover:shadow-lg"
                       style={{ borderColor: SHIP_CONFIGS[selectedShip].color, color: SHIP_CONFIGS[selectedShip].color }}>
                       LAUNCH {SHIP_CONFIGS[selectedShip].name}
                     </button>
-                    <p className="font-mono text-[7px] text-fg-dim mt-2">SPACE shoot • Arrows move • ESC pause</p>
                   </div>
+                  <p className="font-mono text-[7px] text-fg-dim mt-2 text-center">SPACE shoot • Arrows move • ESC pause</p>
                 </div>
               </motion.div>
             )}
@@ -961,8 +1247,8 @@ export default function SpaceGame() {
                 <div className="flex gap-3">
                   <button onClick={() => startGame(g.current.shipIdx)}
                     className="font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-3 hover:bg-accent/10 transition-colors cursor-pointer">TRY AGAIN</button>
-                  <button onClick={() => setScreen("select")}
-                    className="font-mono text-[11px] tracking-widest border border-border text-fg-dim px-6 py-3 hover:bg-white/5 transition-colors cursor-pointer">CHANGE SHIP</button>
+                  <button onClick={() => setScreen("charselect")}
+                    className="font-mono text-[11px] tracking-widest border border-border text-fg-dim px-6 py-3 hover:bg-white/5 transition-colors cursor-pointer">CHANGE CHARACTER</button>
                 </div>
               </motion.div>
             )}
@@ -1018,6 +1304,8 @@ export default function SpaceGame() {
             <span>SPACE SHOOT</span>
             <span className="text-border">|</span>
             <span>ESC PAUSE</span>
+            <span className="text-border">|</span>
+            <span style={{ color: CHARACTER_CONFIGS[g.current.charIdx]?.color }}>{CHARACTER_CONFIGS[g.current.charIdx]?.name}</span>
             <span className="text-border">|</span>
             <span style={{ color: SHIP_CONFIGS[g.current.shipIdx]?.color }}>{SHIP_CONFIGS[g.current.shipIdx]?.name}</span>
             {bossName && <><span className="text-border">|</span><span className="text-[#ff00ff] animate-pulse">BOSS</span></>}
