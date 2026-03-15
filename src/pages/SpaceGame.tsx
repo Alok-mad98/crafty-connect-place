@@ -878,7 +878,7 @@ export default function SpaceGame() {
                         className={`relative p-3 text-left transition-all cursor-pointer bg-[#0a0a1a] ${
                           selectedShip === i ? "border-2 ring-1" : "border border-[#1a1a2e] hover:border-[#2a2a4e]"
                         }`}
-                        style={selectedShip === i ? { borderColor: s.color, boxShadow: `0 0 16px ${s.color}33, inset 0 0 16px ${s.color}11`, ringColor: s.color } : {}}>
+                        style={selectedShip === i ? { borderColor: s.color, boxShadow: `0 0 16px ${s.color}33, inset 0 0 16px ${s.color}11` } : {}}>
                         {selectedShip === i && <div className="absolute top-1 right-1.5 font-mono text-[7px] tracking-wider px-1.5 py-0.5" style={{ color: s.color, backgroundColor: s.color + "15" }}>SELECTED</div>}
                         <div className="flex justify-center mb-2.5">
                           <div className="relative" style={{ width: 64, height: 64 }}>
