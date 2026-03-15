@@ -128,6 +128,7 @@ Deno.serve(async (req) => {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     // Upload to Filebase S3-compatible API (IPFS pinning)
     const s3 = new S3Client({
       endpoint: "https://s3.filebase.com",
@@ -179,6 +180,30 @@ Deno.serve(async (req) => {
       body: fileBytes,
     });
 
+=======
+    // Upload to Filebase using AWS4-HMAC-SHA256 signed request
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const objectKey = `skills/${Date.now()}-${file.name}`;
+    const host = `s3.filebase.com`;
+    const url = `https://${host}/${bucket}/${objectKey}`;
+    const region = "us-east-1";
+    const service = "s3";
+
+    const headers: Record<string, string> = {
+      "Content-Type": "text/markdown",
+    };
+
+    const signedHeaders = await signRequest(
+      "PUT", url, headers, fileBytes, accessKey, secretKey, region, service
+    );
+
+    const putRes = await fetch(url, {
+      method: "PUT",
+      headers: signedHeaders,
+      body: fileBytes,
+    });
+
+>>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec
     if (!putRes.ok) {
       const errText = await putRes.text();
       console.error("Filebase upload failed:", putRes.status, errText);
@@ -189,6 +214,9 @@ Deno.serve(async (req) => {
     if (!cid) {
       console.error("No CID in Filebase response. Headers:", JSON.stringify([...putRes.headers.entries()]));
       return jsonRes({ error: "No CID returned from IPFS" }, 500);
+<<<<<<< HEAD
+>>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec
+=======
 >>>>>>> 9d86b3f035a6f85aa3a958056cd47d0fbcc397ec
     }
 
