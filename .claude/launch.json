@@ -3,9 +3,15 @@
   "configurations": [
     {
       "name": "vite-dev",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "8080"],
       "port": 8080
+    },
+    {
+      "name": "vite-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--port", "4173"],
+      "port": 4173
     }
   ]
 }

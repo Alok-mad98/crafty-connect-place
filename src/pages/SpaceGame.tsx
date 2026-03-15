@@ -208,13 +208,13 @@ export default function SpaceGame() {
     
     // Load character spritesheet
     const charImg = new Image();
-    charImg.src = "/game/SpaceShooterAssetPack_Characters.png";
+    charImg.src = "/game/SpaceShooterAssets/SpaceShooterAssetPack_Characters.png";
     charImg.onload = () => { charSpriteSheet.current = charImg; loaded++; checkDone(); };
     charImg.onerror = () => { loaded++; checkDone(); };
     
     // Load UI spritesheet
     const uiImg = new Image();
-    uiImg.src = "/game/SpaceShooterAssetPack_IU.png";
+    uiImg.src = "/game/SpaceShooterAssets/SpaceShooterAssetPack_IU.png";
     uiImg.onload = () => { uiSpriteSheet.current = uiImg; loaded++; checkDone(); };
     uiImg.onerror = () => { loaded++; checkDone(); };
   }, []);
@@ -496,11 +496,11 @@ export default function SpaceGame() {
           checkBossSpawn(gs);
           const tier = getTier(gs.score);
           const t = ENEMY_TIERS[tier];
-          const spawnRate = Math.max(200, 700 - gs.score * 0.8);
+          const spawnRate = Math.max(140, 550 - gs.score * 1.0);
           if (now - gs.lastSpawn > spawnRate) {
             gs.lastSpawn = now;
-            const spd = t.spd + gs.score/700 + Math.random()*0.3;
-            const count = gs.score > 600 ? 3 : gs.score > 300 ? 2 : 1;
+            const spd = t.spd + gs.score/500 + Math.random()*0.5;
+            const count = gs.score > 400 ? 3 : gs.score > 150 ? 2 : 1;
             for (let i = 0; i < count; i++) {
               gs.enemies.push({ x: t.size/2 + Math.random()*(GW-t.size), y: -t.size - Math.random()*60*i, tier, hp: t.hp, speed: spd, hitFlash: 0 });
             }
@@ -510,8 +510,8 @@ export default function SpaceGame() {
         /* ── Enemy shooting ── */
         for (const e of gs.enemies) {
           const et = ENEMY_TIERS[e.tier]; if (!et.shoots) continue;
-          if (Math.random() < 0.003 + gs.score*0.000005) {
-            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 2.5 + gs.score/700, dx: 0, enemy: true, dmg: 1 });
+          if (Math.random() < 0.005 + gs.score*0.00001) {
+            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 3.0 + gs.score/500, dx: 0, enemy: true, dmg: 1 });
           }
         }
 
