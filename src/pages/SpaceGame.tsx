@@ -500,11 +500,11 @@ export default function SpaceGame() {
           checkBossSpawn(gs);
           const tier = getTier(gs.score);
           const t = ENEMY_TIERS[tier];
-          const spawnRate = Math.max(280, 600 - gs.score * 0.6);
+          const spawnRate = Math.max(340, 700 - gs.score * 0.5);
           if (now - gs.lastSpawn > spawnRate) {
             gs.lastSpawn = now;
-            const spd = t.spd + gs.score/600 + Math.random()*0.4;
-            const count = gs.score > 300 ? 2 : gs.score > 150 ? 2 : 1;
+            const spd = t.spd * 0.85 + gs.score/700 + Math.random()*0.3;
+            const count = gs.score > 400 ? 2 : 1;
             for (let i = 0; i < count; i++) {
               gs.enemies.push({ x: t.size/2 + Math.random()*(GW-t.size), y: -t.size - Math.random()*60*i, tier, hp: t.hp, speed: spd, hitFlash: 0 });
             }
