@@ -359,6 +359,7 @@ export default function SpaceGame() {
     gs.boss = null; gs.bossesDefeated = [];
     gs.score = 0; gs.lives = MAX_LIVES; gs.invincible = 90;
     gs.powerShield = 0; gs.powerSpeed = 0; gs.powerWeapon = 0;
+    gs.killsSincePickup = 0;
     gs.screenFlash = 0;
     gs.lastFire = 0; gs.lastSpawn = 0; gs.shakeTime = 0;
     gs.bgY1 = 0; gs.bgY2 = 0; gs.bgY3 = 0; gs.frame = 0;
