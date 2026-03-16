@@ -500,11 +500,11 @@ export default function SpaceGame() {
           checkBossSpawn(gs);
           const tier = getTier(gs.score);
           const t = ENEMY_TIERS[tier];
-          const spawnRate = Math.max(280, 600 - gs.score * 0.6);
+          const spawnRate = Math.max(340, 700 - gs.score * 0.5);
           if (now - gs.lastSpawn > spawnRate) {
             gs.lastSpawn = now;
-            const spd = t.spd + gs.score/600 + Math.random()*0.4;
-            const count = gs.score > 300 ? 2 : gs.score > 150 ? 2 : 1;
+            const spd = t.spd * 0.85 + gs.score/700 + Math.random()*0.3;
+            const count = gs.score > 400 ? 2 : 1;
             for (let i = 0; i < count; i++) {
               gs.enemies.push({ x: t.size/2 + Math.random()*(GW-t.size), y: -t.size - Math.random()*60*i, tier, hp: t.hp, speed: spd, hitFlash: 0 });
             }
@@ -514,8 +514,8 @@ export default function SpaceGame() {
         /* ── Enemy shooting ── */
         for (const e of gs.enemies) {
           const et = ENEMY_TIERS[e.tier]; if (!et.shoots) continue;
-          if (Math.random() < 0.004 + gs.score*0.000008) {
-            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 2.8 + gs.score/600, dx: 0, enemy: true, dmg: 1 });
+          if (Math.random() < 0.003 + gs.score*0.000006) {
+            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 2.5 + gs.score/700, dx: 0, enemy: true, dmg: 1 });
           }
         }
 
