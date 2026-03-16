@@ -589,6 +589,7 @@ export default function SpaceGame() {
             if (p.type === "shield") gs.powerShield = cfg.duration;
             else if (p.type === "speed") gs.powerSpeed = cfg.duration;
             else if (p.type === "weapon") gs.powerWeapon = cfg.duration;
+            else if (p.type === "health") gs.lives = Math.min(gs.lives + 1, MAX_LIVES);
             // Collection effects
             explode(p.x, p.y, cfg.color, 12);
             gs.screenFlash = 8; // white flash
