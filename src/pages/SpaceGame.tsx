@@ -1109,6 +1109,12 @@ export default function SpaceGame() {
                     CHOOSE CHARACTER
                   </button>
                 )}
+                {isAdmin && (
+                  <button onClick={handleExportCSV}
+                    className="font-mono text-[10px] tracking-widest border border-[#ffcc00] text-[#ffcc00] px-6 py-2 hover:bg-[#ffcc00]/10 transition-colors cursor-pointer mt-2 mb-2">
+                    ⬇ EXPORT GTD DATA (CSV)
+                  </button>
+                )}
                 <div className="mt-4 space-y-1 text-center">
                   <p className="font-mono text-[9px] text-fg-dim">← → or A D — MOVE&nbsp;&nbsp;|&nbsp;&nbsp;SPACE — SHOOT</p>
                   <p className="font-mono text-[9px] text-fg-dim">ESC / P — PAUSE&nbsp;&nbsp;|&nbsp;&nbsp;MOBILE — TAP & DRAG</p>
