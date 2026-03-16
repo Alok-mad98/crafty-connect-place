@@ -970,7 +970,21 @@ export default function SpaceGame() {
     finally { setSubmitting(false); }
   }
 
-  /* ═══════════════════ CHARACTER SELECT CANVAS ═══════════════════ */
+  /* ─── Admin CSV Export ─── */
+  async function handleExportCSV() {
+    try {
+      const res = await fetch(`${GTD_API}/export?admin=${userWallet}`);
+      if (!res.ok) { alert("Export failed"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gtd-claims.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Export failed"); }
+  }
+
   const charCanvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (screen !== "charselect") return;
