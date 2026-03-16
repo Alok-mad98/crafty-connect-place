@@ -28,7 +28,7 @@ const BULLET_SPEED = 10;
 const MAX_LIVES = 5;
 
 /* ─── Pickup Config ─── */
-const PICKUP_DROP_CHANCE = 0.15;
+const PICKUP_DROP_CHANCE = 0.35;
 const PICKUP_FALL_SPEED = 1.4;
 const PICKUP_FRAMES = 15;
 const PICKUP_RENDER_SIZE = 44;     // Bigger, more visible
