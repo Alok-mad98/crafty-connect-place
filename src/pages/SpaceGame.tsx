@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 
 /* ═══════════════════════════════════════════════════════════════════
    NEXUS NODE — SPACE DEFENDER v3
@@ -144,6 +145,12 @@ function getAllAssetKeys(): string[] {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 export default function SpaceGame() {
+  const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const userWallet = wallets[0]?.address?.toLowerCase() || "";
+  const isAdmin = userWallet === ADMIN_WALLET;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [screen, setScreen] = useState<Screen>("menu");
   const [selectedChar, setSelectedChar] = useState(0);
@@ -963,7 +970,21 @@ export default function SpaceGame() {
     finally { setSubmitting(false); }
   }
 
-  /* ═══════════════════ CHARACTER SELECT CANVAS ═══════════════════ */
+  /* ─── Admin CSV Export ─── */
+  async function handleExportCSV() {
+    try {
+      const res = await fetch(`${GTD_API}/export?admin=${userWallet}`);
+      if (!res.ok) { alert("Export failed"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gtd-claims.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Export failed"); }
+  }
+
   const charCanvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (screen !== "charselect") return;
@@ -1086,6 +1107,12 @@ export default function SpaceGame() {
                   <button onClick={() => setScreen("charselect")}
                     className="font-mono text-[12px] tracking-widest border-2 border-accent text-accent px-10 py-3 hover:bg-accent/10 transition-colors cursor-pointer mb-3">
                     CHOOSE CHARACTER
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={handleExportCSV}
+                    className="font-mono text-[10px] tracking-widest border border-[#ffcc00] text-[#ffcc00] px-6 py-2 hover:bg-[#ffcc00]/10 transition-colors cursor-pointer mt-2 mb-2">
+                    ⬇ EXPORT GTD DATA (CSV)
                   </button>
                 )}
                 <div className="mt-4 space-y-1 text-center">

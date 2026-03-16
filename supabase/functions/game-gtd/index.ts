@@ -129,6 +129,38 @@ Deno.serve(async (req) => {
       return json({ entries: data || [] });
     }
 
+    // GET /export?admin=<wallet> — CSV download (admin only)
+    if (req.method === "GET" && path === "export") {
+      const adminWallet = url.searchParams.get("admin")?.toLowerCase();
+      const ADMIN_ADDRESS = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
+      if (adminWallet !== ADMIN_ADDRESS) {
+        return json({ error: "Unauthorized" }, 403);
+      }
+
+      const { data, error } = await supabase
+        .from("game_gtd")
+        .select("twitter_handle, wallet_address, score, created_at")
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = data || [];
+      const csvLines = ["Twitter Handle,Wallet Address,Score,Claimed At"];
+      for (const r of rows) {
+        csvLines.push(`${r.twitter_handle},${r.wallet_address},${r.score},${r.created_at}`);
+      }
+      const csv = csvLines.join("\n");
+
+      return new Response(csv, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/csv",
+          "Content-Disposition": "attachment; filename=gtd-claims.csv",
+        },
+      });
+    }
+
     return json({ error: "Not found" }, 404);
   } catch (err) {
     console.error("game-gtd error:", err);
