@@ -145,6 +145,12 @@ function getAllAssetKeys(): string[] {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 export default function SpaceGame() {
+  const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const userWallet = wallets[0]?.address?.toLowerCase() || "";
+  const isAdmin = userWallet === ADMIN_WALLET;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [screen, setScreen] = useState<Screen>("menu");
   const [selectedChar, setSelectedChar] = useState(0);
