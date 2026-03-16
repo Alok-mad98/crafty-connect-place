@@ -191,6 +191,7 @@ export default function SpaceGame() {
     powerShield: 0,
     powerSpeed: 0,
     powerWeapon: 0,
+    killsSincePickup: 0,
   });
 
   /* ─── Load assets ─── */
