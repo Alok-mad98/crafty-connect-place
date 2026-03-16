@@ -28,7 +28,8 @@ const BULLET_SPEED = 10;
 const MAX_LIVES = 5;
 
 /* ─── Pickup Config ─── */
-const PICKUP_DROP_CHANCE = 0.35;
+const PICKUP_DROP_CHANCE = 0.45;
+const PICKUP_GUARANTEE_AFTER_KILLS = 3;
 const PICKUP_FALL_SPEED = 1.4;
 const PICKUP_FRAMES = 15;
 const PICKUP_RENDER_SIZE = 44;     // Bigger, more visible
@@ -190,6 +191,7 @@ export default function SpaceGame() {
     powerShield: 0,
     powerSpeed: 0,
     powerWeapon: 0,
+    killsSincePickup: 0,
   });
 
   /* ─── Load assets ─── */
@@ -357,6 +359,7 @@ export default function SpaceGame() {
     gs.boss = null; gs.bossesDefeated = [];
     gs.score = 0; gs.lives = MAX_LIVES; gs.invincible = 90;
     gs.powerShield = 0; gs.powerSpeed = 0; gs.powerWeapon = 0;
+    gs.killsSincePickup = 0;
     gs.screenFlash = 0;
     gs.lastFire = 0; gs.lastSpawn = 0; gs.shakeTime = 0;
     gs.bgY1 = 0; gs.bgY2 = 0; gs.bgY3 = 0; gs.frame = 0;
@@ -540,7 +543,12 @@ export default function SpaceGame() {
               if (e.hp <= 0) {
                 explode(e.x, e.y, et.color, 14);
                 gs.enemies.splice(ei, 1);
-                if (Math.random() < PICKUP_DROP_CHANCE) spawnPickup(e.x, e.y);
+                gs.killsSincePickup++;
+                const shouldDropPickup = gs.killsSincePickup >= PICKUP_GUARANTEE_AFTER_KILLS || Math.random() < PICKUP_DROP_CHANCE;
+                if (shouldDropPickup) {
+                  spawnPickup(e.x, e.y);
+                  gs.killsSincePickup = 0;
+                }
                 gs.score += POINTS_PER_KILL; setScore(gs.score);
                 if (gs.score >= WIN_SCORE) { gs.running = false; setScreen("won"); return; }
               }
