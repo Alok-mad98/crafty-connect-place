@@ -39,6 +39,7 @@ const PICKUP_TYPES = [
   { type: "shield" as const, img: "pickup-shield",  label: "SHIELD",  color: "#44ccff", duration: SHIELD_DURATION },
   { type: "speed"  as const, img: "pickup-speed",   label: "SPEED",   color: "#44ff44", duration: POWER_DURATION },
   { type: "weapon" as const, img: "pickup-weapon",  label: "POWER",   color: "#ff8844", duration: POWER_DURATION },
+  { type: "health" as const, img: "pickup-shield-all", label: "HEALTH", color: "#ff4466", duration: 0 },
 ];
 
 /* ═══════════════ CHARACTER CONFIGS ═══════════════ */
@@ -120,7 +121,7 @@ interface Bullet   { x: number; y: number; dy: number; dx: number; enemy: boolea
 interface Enemy    { x: number; y: number; tier: number; hp: number; speed: number; hitFlash: number; }
 interface Boss     { x: number; y: number; hp: number; maxHp: number; cfg: number; dx: number; phase: "enter"|"fight"|"die"; shootTimer: number; hitFlash: number; deathTimer: number; }
 interface Particle { x: number; y: number; dx: number; dy: number; life: number; color: string; size: number; }
-interface Pickup   { x: number; y: number; type: "shield"|"speed"|"weapon"; }
+interface Pickup   { x: number; y: number; type: "shield"|"speed"|"weapon"|"health"; }
 interface FloatingText { x: number; y: number; text: string; color: string; life: number; }
 type Screen = "menu" | "charselect" | "select" | "playing" | "paused" | "gameover" | "won";
 
@@ -588,6 +589,7 @@ export default function SpaceGame() {
             if (p.type === "shield") gs.powerShield = cfg.duration;
             else if (p.type === "speed") gs.powerSpeed = cfg.duration;
             else if (p.type === "weapon") gs.powerWeapon = cfg.duration;
+            else if (p.type === "health") gs.lives = Math.min(gs.lives + 1, MAX_LIVES);
             // Collection effects
             explode(p.x, p.y, cfg.color, 12);
             gs.screenFlash = 8; // white flash
