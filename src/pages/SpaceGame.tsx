@@ -543,7 +543,12 @@ export default function SpaceGame() {
               if (e.hp <= 0) {
                 explode(e.x, e.y, et.color, 14);
                 gs.enemies.splice(ei, 1);
-                if (Math.random() < PICKUP_DROP_CHANCE) spawnPickup(e.x, e.y);
+                gs.killsSincePickup++;
+                const shouldDropPickup = gs.killsSincePickup >= PICKUP_GUARANTEE_AFTER_KILLS || Math.random() < PICKUP_DROP_CHANCE;
+                if (shouldDropPickup) {
+                  spawnPickup(e.x, e.y);
+                  gs.killsSincePickup = 0;
+                }
                 gs.score += POINTS_PER_KILL; setScore(gs.score);
                 if (gs.score >= WIN_SCORE) { gs.running = false; setScreen("won"); return; }
               }
