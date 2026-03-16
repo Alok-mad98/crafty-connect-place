@@ -514,8 +514,8 @@ export default function SpaceGame() {
         /* ── Enemy shooting ── */
         for (const e of gs.enemies) {
           const et = ENEMY_TIERS[e.tier]; if (!et.shoots) continue;
-          if (Math.random() < 0.004 + gs.score*0.000008) {
-            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 2.8 + gs.score/600, dx: 0, enemy: true, dmg: 1 });
+          if (Math.random() < 0.003 + gs.score*0.000006) {
+            gs.bullets.push({ x: e.x, y: e.y + et.size/2, dy: 2.5 + gs.score/700, dx: 0, enemy: true, dmg: 1 });
           }
         }
 
