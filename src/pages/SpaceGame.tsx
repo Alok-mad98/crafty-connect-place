@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Link } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════
    NEXUS NODE — SPACE DEFENDER v3
