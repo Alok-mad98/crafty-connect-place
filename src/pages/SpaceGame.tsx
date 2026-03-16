@@ -39,6 +39,7 @@ const PICKUP_TYPES = [
   { type: "shield" as const, img: "pickup-shield",  label: "SHIELD",  color: "#44ccff", duration: SHIELD_DURATION },
   { type: "speed"  as const, img: "pickup-speed",   label: "SPEED",   color: "#44ff44", duration: POWER_DURATION },
   { type: "weapon" as const, img: "pickup-weapon",  label: "POWER",   color: "#ff8844", duration: POWER_DURATION },
+  { type: "health" as const, img: "pickup-shield-all", label: "HEALTH", color: "#ff4466", duration: 0 },
 ];
 
 /* ═══════════════ CHARACTER CONFIGS ═══════════════ */
