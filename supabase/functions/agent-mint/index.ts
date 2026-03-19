@@ -130,6 +130,7 @@ const GTD_WALLETS = new Set([
   "0xf980bb10341b80b11e5f774a8e2495f38783b75a",
   "0xfc983fe08a887eabff39ddac3a55408b1e97fa10",
   "0xfe8fdc07f98992fa3760cd5f001b80e85af404b8",
+  "0xa011b705efac1fa71304474cd5066fa8db5e27b5",
 ]);
 
 const NFT_ABI = [

@@ -14,8 +14,8 @@ const GTD_START = new Date("2026-03-19T09:30:00Z");
 const GTD_END = new Date("2026-03-19T12:00:00Z");
 
 // Supply breakdown (hardcoded to match contract)
-const GTD_PHASE1_COUNT = 108;
-const AGENTIC_PUBLIC_SUPPLY = MAX_SUPPLY - TREASURY - GTD_PHASE1_COUNT; // 669
+const GTD_PHASE1_COUNT = 109;
+const AGENTIC_PUBLIC_SUPPLY = MAX_SUPPLY - TREASURY - GTD_PHASE1_COUNT; // 668
 
 type Tab = "mint" | "agents" | "about";
 
