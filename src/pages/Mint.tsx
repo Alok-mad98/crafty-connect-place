@@ -1,19 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Link } from "react-router-dom";
 
 const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
 const MAX_SUPPLY = 779;
-const AGENT_SUPPLY = 389;
-const HUMAN_SUPPLY = 388;
-const FREE_HUMAN = 100;
-const PAID_HUMAN = 288;
 const TREASURY = 2;
+const GTD_PHASE1_SPOTS = 107;
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "ffmqlinwuinxzxwfueim";
 const API_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1/agent-mint`;
 
-type Tab = "agents" | "humans" | "about";
+type Tab = "mint" | "agents" | "about";
 
 interface MintEntry {
   token_id: number;
@@ -27,8 +24,20 @@ interface MintState {
   total: number;
   remaining: number;
   mintActive: boolean;
-  phase: string;
+  currentPhase: string;
+  phase1Start: number;
+  phase1End: number;
+  gtdTotal: number;
+  gtdMinted: number;
   recentMints: MintEntry[];
+}
+
+interface WLStatus {
+  whitelisted: boolean;
+  minted: boolean;
+  canMint: boolean;
+  reason: string;
+  currentPhase: string;
 }
 
 function truncateAddr(addr: string): string {
@@ -41,21 +50,47 @@ function truncateTx(tx: string): string {
   return tx.slice(0, 10) + "..." + tx.slice(-4);
 }
 
+function Countdown({ target, label }: { target: number; label: string }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) { setTimeLeft("NOW"); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [target]);
+
+  return (
+    <div className="text-center">
+      <p className="font-mono text-[9px] tracking-widest text-fg-dim mb-1">{label}</p>
+      <p className="font-mono text-2xl text-accent font-bold tracking-wider">{timeLeft}</p>
+    </div>
+  );
+}
+
 export default function Mint() {
-  const { authenticated } = usePrivy();
+  const { authenticated, login } = usePrivy();
   const { wallets } = useWallets();
   const userWallet = wallets[0]?.address?.toLowerCase() || "";
   const isAdmin = userWallet === ADMIN_WALLET;
 
-  const [tab, setTab] = useState<Tab>("humans");
+  const [tab, setTab] = useState<Tab>("mint");
   const [mintState, setMintState] = useState<MintState>({
-    minted: 0,
-    total: MAX_SUPPLY,
-    remaining: MAX_SUPPLY,
-    mintActive: false,
-    phase: "free",
-    recentMints: [],
+    minted: 0, total: MAX_SUPPLY, remaining: MAX_SUPPLY,
+    mintActive: false, currentPhase: "waiting",
+    phase1Start: 0, phase1End: 0,
+    gtdTotal: 0, gtdMinted: 0, recentMints: [],
   });
+  const [wlStatus, setWlStatus] = useState<WLStatus | null>(null);
+  const [minting, setMinting] = useState(false);
+  const [mintResult, setMintResult] = useState<{ success: boolean; message: string; txHash?: string } | null>(null);
   const [toggling, setToggling] = useState(false);
   const ledgerRef = useRef<HTMLDivElement>(null);
 
@@ -63,38 +98,41 @@ export default function Mint() {
   const isLive = mintState.mintActive && !soldOut;
   const progress = (mintState.minted / mintState.total) * 100;
 
-  // Fetch state on mount + poll every 10s
+  // Fetch state
   useEffect(() => {
     let active = true;
-
     const fetchState = () => {
       fetch(`${API_BASE}/state`)
         .then((r) => r.json())
         .then((d) => {
           if (active && d.total) {
             setMintState({
-              minted: d.minted ?? 0,
-              total: d.total ?? MAX_SUPPLY,
-              remaining: d.remaining ?? MAX_SUPPLY,
-              mintActive: d.mintActive ?? false,
-              phase: d.phase ?? "free",
+              minted: d.minted ?? 0, total: d.total ?? MAX_SUPPLY,
+              remaining: d.remaining ?? MAX_SUPPLY, mintActive: d.mintActive ?? false,
+              currentPhase: d.currentPhase ?? "waiting",
+              phase1Start: d.phase1Start ?? 0, phase1End: d.phase1End ?? 0,
+              gtdTotal: d.gtdTotal ?? 0, gtdMinted: d.gtdMinted ?? 0,
               recentMints: Array.isArray(d.recentMints) ? d.recentMints : [],
             });
           }
         })
         .catch(() => {});
     };
-
     fetchState();
     const interval = setInterval(fetchState, 10000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
-  // Admin toggle handler
+  // Check whitelist status
+  useEffect(() => {
+    if (!userWallet) { setWlStatus(null); return; }
+    fetch(`${API_BASE}/check-wl?wallet=${userWallet}`)
+      .then(r => r.json())
+      .then(d => setWlStatus(d))
+      .catch(() => {});
+  }, [userWallet, mintState.minted]);
+
+  // Admin toggle
   const handleToggle = async () => {
     if (!wallets[0] || toggling) return;
     setToggling(true);
@@ -102,238 +140,231 @@ export default function Mint() {
       const provider = await wallets[0].getEthereumProvider();
       const address = wallets[0].address;
       const newActive = !mintState.mintActive;
-      const timestamp = Date.now();
-      const message = `nexus:toggle:${newActive}:${timestamp}`;
-      const signature = await provider.request({
-        method: "personal_sign",
-        params: [message, address],
-      });
+      const message = `nexus:toggle:${newActive}:${Date.now()}`;
+      const signature = await provider.request({ method: "personal_sign", params: [message, address] });
       const res = await fetch(`${API_BASE}/admin/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: newActive, adminSignature: signature, message }),
       });
-      if (res.ok) {
-        setMintState((prev) => ({ ...prev, mintActive: newActive }));
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setToggling(false);
-    }
+      if (res.ok) setMintState(prev => ({ ...prev, mintActive: newActive }));
+    } catch {} finally { setToggling(false); }
   };
 
-  // Visibility: not active, not admin, not sold out => "COMING SOON"
+  // Human mint
+  const handleMint = useCallback(async () => {
+    if (!wallets[0] || minting) return;
+    setMinting(true);
+    setMintResult(null);
+    try {
+      const provider = await wallets[0].getEthereumProvider();
+      const address = wallets[0].address;
+      const message = `nexus:human-mint:${address}:${Date.now()}`;
+      const signature = await provider.request({ method: "personal_sign", params: [message, address] });
+
+      const res = await fetch(`${API_BASE}/human-mint`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, signature, message }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMintResult({ success: true, message: data.message, txHash: data.txHash });
+        setWlStatus(prev => prev ? { ...prev, canMint: false, minted: true, reason: "Already minted" } : prev);
+      } else {
+        setMintResult({ success: false, message: data.error || "Mint failed" });
+      }
+    } catch (e) {
+      setMintResult({ success: false, message: e instanceof Error ? e.message : "Mint failed" });
+    } finally { setMinting(false); }
+  }, [wallets, minting]);
+
+  // Coming soon screen
   if (!mintState.mintActive && !isAdmin && !soldOut) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6 bg-bg">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
-          <p className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4">
-            NEXUS NODE
-          </p>
-          <h1 className="text-3xl font-bold font-mono text-fg mb-4 tracking-tight">
-            COMING SOON
-          </h1>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
+          <p className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4">NEXUS NODE</p>
+          <h1 className="text-3xl font-bold font-mono text-fg mb-4 tracking-tight">COMING SOON</h1>
           <p className="font-mono text-[11px] text-fg-muted max-w-sm mx-auto leading-relaxed">
-            A {MAX_SUPPLY}-piece AI agent NFT collection on Base.
-            Minting has not started yet.
+            A {MAX_SUPPLY}-piece AI agent NFT collection on Base. All human mints are FREE.
           </p>
 
-          {/* Game CTA */}
-          <Link
-            to="/game"
-            className="inline-block mt-6 font-mono text-[11px] tracking-widest border border-success text-success px-6 py-2.5 hover:bg-success/10 transition-colors"
-          >
+          {mintState.phase1Start > 0 && Date.now() < mintState.phase1Start && (
+            <div className="mt-6">
+              <Countdown target={mintState.phase1Start} label="GTD PHASE 1 OPENS IN" />
+            </div>
+          )}
+
+          <Link to="/game" className="inline-block mt-6 font-mono text-[11px] tracking-widest border border-success text-success px-6 py-2.5 hover:bg-success/10 transition-colors">
             PLAY GAME — EARN PHASE 2 GTD
           </Link>
 
           <div className="mt-8 flex items-center justify-center gap-4 font-mono text-[9px] tracking-widest text-fg-dim">
             <span>SUPPLY {MAX_SUPPLY}</span>
             <span className="text-border">|</span>
-            <span>CHAIN BASE</span>
+            <span>FREE MINT</span>
             <span className="text-border">|</span>
-            <span>SHA-256 POW</span>
+            <span>CHAIN BASE</span>
           </div>
         </motion.div>
       </div>
     );
   }
 
-  const tabs: Tab[] = ["humans", "agents", "about"];
+  const tabs: Tab[] = ["mint", "agents", "about"];
+  const now = Date.now();
+  const isPhase1 = mintState.currentPhase === "phase1" || (now >= mintState.phase1Start && now <= mintState.phase1End);
+  const isPublic = mintState.currentPhase === "public" || now > mintState.phase1End;
 
   return (
     <div className="min-h-screen px-4 py-12 md:py-20 bg-bg">
       <div className="max-w-[700px] mx-auto">
 
-        {/* ─── Admin Toggle ─── */}
+        {/* Admin Toggle */}
         {isAdmin && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-4 flex justify-center"
-          >
-            <button
-              onClick={handleToggle}
-              disabled={toggling}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex justify-center">
+            <button onClick={handleToggle} disabled={toggling}
               className={`font-mono text-[10px] tracking-widest px-5 py-2 border transition-colors cursor-pointer ${
-                mintState.mintActive
-                  ? "border-error text-error hover:bg-error/10"
-                  : "border-success text-success hover:bg-success/10"
-              } ${toggling ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              {toggling
-                ? "SIGNING..."
-                : mintState.mintActive
-                ? "PAUSE MINT"
-                : "GO LIVE"}
+                mintState.mintActive ? "border-error text-error hover:bg-error/10" : "border-success text-success hover:bg-success/10"
+              } ${toggling ? "opacity-50 cursor-not-allowed" : ""}`}>
+              {toggling ? "SIGNING..." : mintState.mintActive ? "PAUSE MINT" : "GO LIVE"}
             </button>
           </motion.div>
         )}
 
-        {/* ─── Terminal Window ─── */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="border border-border bg-bg-card"
-        >
-          {/* Terminal Header Bar */}
+        {/* Terminal Window */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="border border-border bg-bg-card">
+          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-[#ff5f57]" />
               <div className="w-2 h-2 rounded-full bg-[#febc2e]" />
               <div className="w-2 h-2 rounded-full bg-[#28c840]" />
-              <span className="font-mono text-[10px] tracking-widest text-fg-dim ml-3">
-                MINTSTATION {MAX_SUPPLY}
-              </span>
+              <span className="font-mono text-[10px] tracking-widest text-fg-dim ml-3">NEXUS NODE — FREE MINT</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  soldOut
-                    ? "bg-error"
-                    : isLive
-                    ? "bg-success animate-pulse"
-                    : "bg-fg-dim"
-                }`}
-              />
-              <span
-                className={`font-mono text-[9px] tracking-widest ${
-                  soldOut
-                    ? "text-error"
-                    : isLive
-                    ? "text-success"
-                    : "text-fg-dim"
-                }`}
-              >
+              <span className={`w-1.5 h-1.5 rounded-full ${soldOut ? "bg-error" : isLive ? "bg-success animate-pulse" : "bg-fg-dim"}`} />
+              <span className={`font-mono text-[9px] tracking-widest ${soldOut ? "text-error" : isLive ? "text-success" : "text-fg-dim"}`}>
                 {soldOut ? "SOLD OUT" : isLive ? "LIVE" : "PAUSED"}
               </span>
             </div>
           </div>
 
-          {/* ─── Mint Counter ─── */}
+          {/* Mint Counter */}
           <div className="px-6 pt-8 pb-6">
             <div className="flex items-baseline justify-center gap-2 mb-4">
-              <span className="font-mono text-6xl md:text-7xl font-bold text-fg tracking-tight">
-                {mintState.minted}
-              </span>
-              <span className="font-mono text-[13px] text-fg-dim">
-                / {MAX_SUPPLY} MINTED
-              </span>
+              <span className="font-mono text-6xl md:text-7xl font-bold text-fg tracking-tight">{mintState.minted}</span>
+              <span className="font-mono text-[13px] text-fg-dim">/ {MAX_SUPPLY} MINTED</span>
             </div>
 
-            {/* Progress Bar */}
             <div className="w-full h-2 bg-border overflow-hidden mb-4">
-              <motion.div
-                className="h-full bg-accent"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-              />
+              <motion.div className="h-full bg-accent" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1.2, ease: "easeOut" }} />
             </div>
 
-            {/* Supply Breakdown */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="border border-border px-3 py-2 text-center">
-                <p className="font-mono text-[9px] tracking-widest text-fg-dim">AI AGENTS</p>
-                <p className="font-mono text-lg text-fg font-bold">{AGENT_SUPPLY}</p>
+            {/* Phase Info */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className={`border px-3 py-2 text-center ${isPhase1 ? "border-success" : "border-border"}`}>
+                <p className="font-mono text-[9px] tracking-widest text-fg-dim">GTD PHASE 1</p>
+                <p className="font-mono text-lg text-success font-bold">{GTD_PHASE1_SPOTS}</p>
+                <p className="font-mono text-[8px] text-fg-dim">WHITELISTED • FREE</p>
+                <p className="font-mono text-[8px] text-fg-dim mt-1">09:30 — 12:00 UTC</p>
               </div>
-              <div className="border border-border px-3 py-2 text-center">
-                <p className="font-mono text-[9px] tracking-widest text-fg-dim">HUMANS FREE</p>
-                <p className="font-mono text-lg text-success font-bold">{FREE_HUMAN}</p>
-                <p className="font-mono text-[8px] text-fg-dim">PHASE 1 GTD</p>
-              </div>
-              <div className="border border-border px-3 py-2 text-center">
-                <p className="font-mono text-[9px] tracking-widest text-fg-dim">HUMANS $10</p>
-                <p className="font-mono text-lg text-accent font-bold">{PAID_HUMAN}</p>
-                <p className="font-mono text-[8px] text-fg-dim">PHASE 2 GTD</p>
+              <div className={`border px-3 py-2 text-center ${isPublic ? "border-accent" : "border-border"}`}>
+                <p className="font-mono text-[9px] tracking-widest text-fg-dim">PUBLIC + AGENTIC</p>
+                <p className="font-mono text-lg text-accent font-bold">{MAX_SUPPLY - TREASURY - GTD_PHASE1_SPOTS}</p>
+                <p className="font-mono text-[8px] text-fg-dim">OPEN • FREE</p>
+                <p className="font-mono text-[8px] text-fg-dim mt-1">AFTER 12:00 UTC</p>
               </div>
             </div>
 
-            {/* Status Badge */}
-            <div className="flex justify-center">
-              {soldOut ? (
-                <span className="font-mono text-[10px] tracking-widest border border-error text-error px-3 py-1">
-                  SOLD OUT
-                </span>
-              ) : isLive ? (
-                <span className="font-mono text-[10px] tracking-widest border border-success text-success px-3 py-1">
-                  LIVE
-                </span>
-              ) : (
-                <span className="font-mono text-[10px] tracking-widest border border-fg-dim text-fg-dim px-3 py-1">
-                  COMING SOON
-                </span>
-              )}
+            {/* Countdown or Phase Badge */}
+            <div className="flex justify-center mb-2">
+              {!isPhase1 && !isPublic && mintState.phase1Start > 0 && now < mintState.phase1Start ? (
+                <Countdown target={mintState.phase1Start} label="GTD PHASE 1 OPENS IN" />
+              ) : isPhase1 && mintState.phase1End > 0 ? (
+                <Countdown target={mintState.phase1End} label="PHASE 1 ENDS IN" />
+              ) : isPublic ? (
+                <span className="font-mono text-[10px] tracking-widest border border-accent text-accent px-3 py-1">PUBLIC MINT LIVE</span>
+              ) : null}
             </div>
           </div>
 
-          {/* ─── Tabs ─── */}
+          {/* Tabs */}
           <div className="flex border-t border-b border-border">
             {tabs.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
+              <button key={t} onClick={() => setTab(t)}
                 className={`flex-1 px-4 py-2.5 font-mono text-[10px] tracking-widest transition-colors cursor-pointer border-b-2 ${
-                  tab === t
-                    ? "text-fg border-accent"
-                    : "text-fg-dim hover:text-fg-muted border-transparent"
-                }`}
-              >
+                  tab === t ? "text-fg border-accent" : "text-fg-dim hover:text-fg-muted border-transparent"
+                }`}>
                 {t.toUpperCase()}
               </button>
             ))}
           </div>
 
-          {/* ─── Tab Content ─── */}
+          {/* Tab Content */}
           <AnimatePresence mode="wait">
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="px-6 py-6"
-            >
-              {tab === "humans" && (
-                <div className="font-mono text-[11px] text-fg-muted leading-relaxed space-y-4">
-                  <div className="border border-border px-4 py-3">
-                    <p className="text-success text-[10px] tracking-widest mb-1">PHASE 1 — FREE MINT</p>
-                    <p>First {FREE_HUMAN} GTD spots for humans. Free mint — no cost.</p>
-                  </div>
-                  <div className="border border-border px-4 py-3">
-                    <p className="text-accent text-[10px] tracking-widest mb-1">PHASE 2 — PAID MINT ($10 USD)</p>
-                    <p>{PAID_HUMAN} spots available. Earn your GTD by scoring 1000+ in the Space Defender game.</p>
-                    <Link
-                      to="/game"
-                      className="inline-block mt-3 font-mono text-[10px] tracking-widest border border-success text-success px-5 py-2 hover:bg-success/10 transition-colors"
-                    >
-                      PLAY GAME — EARN GTD
-                    </Link>
+            <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="px-6 py-6">
+
+              {tab === "mint" && (
+                <div className="space-y-4">
+                  {/* WL Status */}
+                  {!authenticated ? (
+                    <div className="text-center space-y-3">
+                      <p className="font-mono text-[11px] text-fg-muted">Connect your wallet to check eligibility and mint.</p>
+                      <button onClick={login}
+                        className="font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-2.5 hover:bg-accent/10 transition-colors cursor-pointer">
+                        CONNECT WALLET
+                      </button>
+                    </div>
+                  ) : wlStatus ? (
+                    <div className="space-y-4">
+                      {/* Status */}
+                      <div className={`border px-4 py-3 ${wlStatus.whitelisted ? "border-success" : "border-border"}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-2 h-2 rounded-full ${wlStatus.whitelisted ? "bg-success" : "bg-fg-dim"}`} />
+                          <p className="font-mono text-[10px] tracking-widest text-fg-dim">
+                            {wlStatus.whitelisted ? "WHITELISTED ✓" : "NOT WHITELISTED"}
+                          </p>
+                        </div>
+                        <p className="font-mono text-[11px] text-fg-muted">{wlStatus.reason}</p>
+                        <p className="font-mono text-[9px] text-fg-dim mt-1">{truncateAddr(userWallet)}</p>
+                      </div>
+
+                      {/* Mint Button */}
+                      {wlStatus.canMint && isLive && !mintResult?.success && (
+                        <button onClick={handleMint} disabled={minting}
+                          className={`w-full font-mono text-[12px] tracking-widest border-2 border-success text-success px-6 py-4 hover:bg-success/10 transition-colors cursor-pointer ${
+                            minting ? "opacity-50 cursor-not-allowed animate-pulse" : ""
+                          }`}>
+                          {minting ? "MINTING..." : "MINT FREE NFT"}
+                        </button>
+                      )}
+
+                      {/* Result */}
+                      {mintResult && (
+                        <div className={`border px-4 py-3 ${mintResult.success ? "border-success" : "border-error"}`}>
+                          <p className={`font-mono text-[11px] ${mintResult.success ? "text-success" : "text-error"}`}>
+                            {mintResult.message}
+                          </p>
+                          {mintResult.txHash && (
+                            <a href={`https://basescan.org/tx/${mintResult.txHash}`} target="_blank" rel="noopener noreferrer"
+                              className="font-mono text-[10px] text-accent hover:underline mt-1 block">
+                              View on BaseScan →
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="font-mono text-[11px] text-fg-dim text-center">Checking eligibility...</p>
+                  )}
+
+                  {/* Info */}
+                  <div className="border border-border px-4 py-3 font-mono text-[10px] text-fg-dim space-y-1">
+                    <p>• All human mints are <span className="text-success">FREE</span></p>
+                    <p>• 1 mint per wallet</p>
+                    <p>• GTD Phase 1: 09:30 AM — 12:00 PM UTC (whitelisted only)</p>
+                    <p>• Public + Agentic mint: after 12:00 PM UTC</p>
                   </div>
                 </div>
               )}
@@ -341,14 +372,10 @@ export default function Mint() {
               {tab === "agents" && (
                 <div>
                   <p className="font-mono text-[11px] text-fg-muted leading-relaxed mb-3">
-                    {AGENT_SUPPLY} slots reserved for AI agents. Agents mint by solving
-                    SHA-256 proof-of-work challenges via our API. First {FREE_HUMAN} free,
-                    then $10 USD in ETH.
+                    Remaining supply is reserved for AI agents. Agents mint by solving SHA-256 proof-of-work challenges via our API. All mints are free.
                   </p>
-                  <Link
-                    to="/mint/docs"
-                    className="inline-block font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-2.5 hover:bg-accent/10 transition-colors"
-                  >
+                  <Link to="/mint/docs"
+                    className="inline-block font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-2.5 hover:bg-accent/10 transition-colors">
                     AGENT DOCS
                   </Link>
                 </div>
@@ -356,15 +383,12 @@ export default function Mint() {
 
               {tab === "about" && (
                 <div className="font-mono text-[11px] text-fg-muted leading-relaxed space-y-3">
-                  <p>
-                    Nexus Node is a {MAX_SUPPLY}-piece AI agent NFT collection on Base.
-                  </p>
+                  <p>Nexus Node is a {MAX_SUPPLY}-piece AI agent NFT collection on Base.</p>
                   <div className="border border-border px-4 py-3 space-y-1 text-[10px]">
                     <p className="text-fg-dim tracking-widest mb-2">SUPPLY BREAKDOWN</p>
                     <p>Treasury: {TREASURY}</p>
-                    <p>AI Agents: {AGENT_SUPPLY}</p>
-                    <p>Humans — Phase 1 Free GTD: {FREE_HUMAN}</p>
-                    <p>Humans — Phase 2 Paid GTD ($10): {PAID_HUMAN}</p>
+                    <p>GTD Phase 1 (Whitelisted Free): {GTD_PHASE1_SPOTS}</p>
+                    <p>Public + Agentic Mint (Free): {MAX_SUPPLY - TREASURY - GTD_PHASE1_SPOTS}</p>
                     <p className="text-fg-dim border-t border-border pt-1 mt-2">Total: {MAX_SUPPLY}</p>
                   </div>
                 </div>
@@ -373,73 +397,43 @@ export default function Mint() {
           </AnimatePresence>
         </motion.div>
 
-        {/* ─── Recent Mints Ledger ─── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="border border-border bg-bg-card mt-6"
-        >
+        {/* Recent Mints */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="border border-border bg-bg-card mt-6">
           <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
-            <p className="font-mono text-[10px] tracking-widest text-fg-dim">
-              RECENT MINTS
-            </p>
+            <p className="font-mono text-[10px] tracking-widest text-fg-dim">RECENT MINTS</p>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-              <span className="font-mono text-[9px] tracking-widest text-success">
-                LIVE
-              </span>
+              <span className="font-mono text-[9px] tracking-widest text-success">LIVE</span>
             </div>
           </div>
           <div ref={ledgerRef} className="max-h-52 overflow-y-auto">
             {mintState.recentMints.length === 0 ? (
               <div className="px-4 py-6 text-center">
-                <span className="font-mono text-[10px] text-fg-dim">
-                  No mints yet
-                </span>
+                <span className="font-mono text-[10px] text-fg-dim">No mints yet</span>
               </div>
             ) : (
               mintState.recentMints.map((entry, i) => (
-                <div
-                  key={entry.tx_hash || i}
-                  className="flex items-center gap-3 px-4 py-2 border-b border-border last:border-b-0 font-mono text-[10px]"
-                >
+                <div key={entry.tx_hash || i} className="flex items-center gap-3 px-4 py-2 border-b border-border last:border-b-0 font-mono text-[10px]">
                   <span className="text-fg-dim">#{entry.token_id}</span>
                   <span className="text-fg-dim">|</span>
-                  <span className="text-accent">
-                    {truncateTx(entry.tx_hash)}
-                  </span>
+                  <span className="text-accent">{truncateTx(entry.tx_hash)}</span>
                   <span className="text-fg-dim">|</span>
-                  <span className="text-fg-muted">
-                    {truncateAddr(entry.wallet)}
-                  </span>
-                  <span
-                    className={`ml-auto text-[9px] tracking-widest px-1.5 py-0.5 border ${
-                      entry.free
-                        ? "border-success text-success"
-                        : "border-accent text-accent"
-                    }`}
-                  >
-                    {entry.free ? "FREE" : "PAID"}
-                  </span>
+                  <span className="text-fg-muted">{truncateAddr(entry.wallet)}</span>
+                  <span className="ml-auto text-[9px] tracking-widest px-1.5 py-0.5 border border-success text-success">FREE</span>
                 </div>
               ))
             )}
           </div>
         </motion.div>
 
-        {/* ─── Bottom Stats Bar ─── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-8 flex items-center justify-center gap-4 font-mono text-[9px] tracking-widest text-fg-dim"
-        >
+        {/* Bottom Stats */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+          className="mt-8 flex items-center justify-center gap-4 font-mono text-[9px] tracking-widest text-fg-dim">
           <span>SUPPLY {MAX_SUPPLY}</span>
           <span className="text-border">|</span>
-          <span>CHAIN BASE</span>
+          <span>FREE MINT</span>
           <span className="text-border">|</span>
-          <span>SHA-256 POW</span>
+          <span>CHAIN BASE</span>
         </motion.div>
       </div>
     </div>
