@@ -233,11 +233,12 @@ async function handleHumanMint(req: Request): Promise<Response> {
 
   const supabase = getSupabase();
   const walletLower = wallet.toLowerCase();
+  const isAdminWallet = walletLower === ADMIN_WALLET;
 
-  // Check mint is active
+  // Check mint is active (admin bypasses)
   const { data: configData } = await supabase
     .from("mint_config").select("value").eq("key", "mint_active").single();
-  if (configData?.value !== "true") return err("Mint not active");
+  if (configData?.value !== "true" && !isAdminWallet) return err("Mint not active");
 
   const now = Date.now();
 
@@ -245,18 +246,20 @@ async function handleHumanMint(req: Request): Promise<Response> {
   const isPhase1Window = now >= PHASE1_START && now <= PHASE1_END;
   const isAfterPhase1 = now > PHASE1_END;
 
-  // Check whitelist for Phase 1
+  // Check whitelist for Phase 1 (admin bypasses phase checks)
   const { data: wlEntry } = await supabase
     .from("gtd_whitelist")
     .select("*")
     .eq("wallet", walletLower)
     .maybeSingle();
 
-  if (isPhase1Window) {
-    if (!wlEntry) return err("Wallet not on GTD Phase 1 whitelist");
-    if (wlEntry.minted) return err("Already minted in GTD Phase 1");
-  } else if (!isAfterPhase1) {
-    return err("GTD Phase 1 opens at 09:30 AM UTC. Please wait.");
+  if (!isAdminWallet) {
+    if (isPhase1Window) {
+      if (!wlEntry) return err("Wallet not on GTD Phase 1 whitelist");
+      if (wlEntry.minted) return err("Already minted in GTD Phase 1");
+    } else if (!isAfterPhase1) {
+      return err("GTD Phase 1 opens at 09:30 AM UTC. Please wait.");
+    }
   }
 
   // After Phase 1 window: public mint (free for everyone)
