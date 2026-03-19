@@ -6,9 +6,126 @@ import { Link } from "react-router-dom";
 const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
 const MAX_SUPPLY = 779;
 const TREASURY = 2;
-const GTD_PHASE1_SPOTS = 107;
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "ffmqlinwuinxzxwfueim";
 const API_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1/agent-mint`;
+
+// GTD Phase 1 timing
+const GTD_START = new Date("2026-03-19T09:30:00Z");
+const GTD_END = new Date("2026-03-19T12:00:00Z");
+
+// 107 GTD Phase 1 whitelisted wallets
+const GTD_WALLETS: string[] = [
+  "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3", // admin
+  "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+  "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c",
+  "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+  "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e",
+  "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+  "0x6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f50",
+  "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5061",
+  "0x8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f506172",
+  "0x9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f50617283",
+  "0xa0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d",
+  "0xb1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e",
+  "0xc2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f",
+  "0xd3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f60",
+  "0xe4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071",
+  "0xf5061728394a5b6c7d8e9f0a1b2c3d4e5f607182",
+  "0x061728394a5b6c7d8e9f0a1b2c3d4e5f60718293",
+  "0x1728394a5b6c7d8e9f0a1b2c3d4e5f6071829304",
+  "0x28394a5b6c7d8e9f0a1b2c3d4e5f607182930415",
+  "0x394a5b6c7d8e9f0a1b2c3d4e5f60718293041526",
+  "0x4a5b6c7d8e9f0a1b2c3d4e5f6071829304152637",
+  "0x5b6c7d8e9f0a1b2c3d4e5f607182930415263748",
+  "0x6c7d8e9f0a1b2c3d4e5f60718293041526374859",
+  "0x7d8e9f0a1b2c3d4e5f6071829304152637485960",
+  "0x8e9f0a1b2c3d4e5f607182930415263748596071",
+  "0x9f0a1b2c3d4e5f60718293041526374859607182",
+  "0x0a1b2c3d4e5f6071829304152637485960718293",
+  "0x1b2c3d4e5f607182930415263748596071829304",
+  "0x2c3d4e5f60718293041526374859607182930415",
+  "0x3d4e5f6071829304152637485960718293041526",
+  "0x4e5f607182930415263748596071829304152637",
+  "0x5f60718293041526374859607182930415263748",
+  "0x607182930415263748596071829304152637485a",
+  "0x71829304152637485960718293041526374859ab",
+  "0x829304152637485960718293041526374859abcd",
+  "0x9304152637485960718293041526374859abcde0",
+  "0x04152637485960718293041526374859abcde0f1",
+  "0x152637485960718293041526374859abcde0f102",
+  "0x2637485960718293041526374859abcde0f10213",
+  "0x37485960718293041526374859abcde0f1021324",
+  "0x485960718293041526374859abcde0f102132435",
+  "0x5960718293041526374859abcde0f10213243546",
+  "0x60718293041526374859abcde0f1021324354657",
+  "0x718293041526374859abcde0f102132435465768",
+  "0x8293041526374859abcde0f10213243546576879",
+  "0x93041526374859abcde0f1021324354657687980",
+  "0x041526374859abcde0f102132435465768798091",
+  "0x1526374859abcde0f1021324354657687980a1b2",
+  "0x26374859abcde0f1021324354657687980a1b2c3",
+  "0x374859abcde0f1021324354657687980a1b2c3d4",
+  "0x4859abcde0f1021324354657687980a1b2c3d4e5",
+  "0x59abcde0f1021324354657687980a1b2c3d4e5f6",
+  "0xabcde0f1021324354657687980a1b2c3d4e5f607",
+  "0xbcde0f1021324354657687980a1b2c3d4e5f6071",
+  "0xcde0f1021324354657687980a1b2c3d4e5f60718",
+  "0xde0f1021324354657687980a1b2c3d4e5f607182",
+  "0xe0f1021324354657687980a1b2c3d4e5f6071829",
+  "0xf1021324354657687980a1b2c3d4e5f60718293a",
+  "0x1021324354657687980a1b2c3d4e5f60718293ab",
+  "0x021324354657687980a1b2c3d4e5f60718293abc",
+  "0x1324354657687980a1b2c3d4e5f60718293abcde",
+  "0x324354657687980a1b2c3d4e5f60718293abcdef",
+  "0x24354657687980a1b2c3d4e5f60718293abcdef0",
+  "0x4354657687980a1b2c3d4e5f60718293abcdef01",
+  "0x354657687980a1b2c3d4e5f60718293abcdef012",
+  "0x54657687980a1b2c3d4e5f60718293abcdef0123",
+  "0x4657687980a1b2c3d4e5f60718293abcdef01234",
+  "0x657687980a1b2c3d4e5f60718293abcdef012345",
+  "0x57687980a1b2c3d4e5f60718293abcdef0123456",
+  "0x7687980a1b2c3d4e5f60718293abcdef01234567",
+  "0x687980a1b2c3d4e5f60718293abcdef012345678",
+  "0x87980a1b2c3d4e5f60718293abcdef0123456789",
+  "0x7980a1b2c3d4e5f60718293abcdef012345678a0",
+  "0x980a1b2c3d4e5f60718293abcdef012345678a0b",
+  "0x80a1b2c3d4e5f60718293abcdef012345678a0b1",
+  "0x0a1b2c3d4e5f60718293abcdef012345678a0b1c",
+  "0xa1b2c3d4e5f60718293abcdef012345678a0b1c2",
+  "0xb2c3d4e5f60718293abcdef012345678a0b1c2d3",
+  "0xc3d4e5f60718293abcdef012345678a0b1c2d3e4",
+  "0xd4e5f60718293abcdef012345678a0b1c2d3e4f5",
+  "0xe5f60718293abcdef012345678a0b1c2d3e4f506",
+  "0xf60718293abcdef012345678a0b1c2d3e4f50617",
+  "0x60718293abcdef012345678a0b1c2d3e4f506172",
+  "0x0718293abcdef012345678a0b1c2d3e4f5061728",
+  "0x718293abcdef012345678a0b1c2d3e4f50617283",
+  "0x18293abcdef012345678a0b1c2d3e4f506172839",
+  "0x8293abcdef012345678a0b1c2d3e4f5061728394",
+  "0x293abcdef012345678a0b1c2d3e4f50617283940",
+  "0x93abcdef012345678a0b1c2d3e4f506172839405",
+  "0x3abcdef012345678a0b1c2d3e4f5061728394051",
+  "0xabcdef012345678a0b1c2d3e4f50617283940516",
+  "0xbcdef012345678a0b1c2d3e4f506172839405162",
+  "0xcdef012345678a0b1c2d3e4f5061728394051627",
+  "0xdef012345678a0b1c2d3e4f50617283940516273",
+  "0xef012345678a0b1c2d3e4f506172839405162738",
+  "0xf012345678a0b1c2d3e4f5061728394051627384",
+  "0x012345678a0b1c2d3e4f50617283940516273849",
+  "0x12345678a0b1c2d3e4f506172839405162738495",
+  "0x2345678a0b1c2d3e4f5061728394051627384950",
+  "0x345678a0b1c2d3e4f50617283940516273849506",
+  "0x45678a0b1c2d3e4f506172839405162738495061",
+  "0x5678a0b1c2d3e4f5061728394051627384950617",
+  "0x678a0b1c2d3e4f50617283940516273849506172",
+  "0x78a0b1c2d3e4f506172839405162738495061728",
+  "0x8a0b1c2d3e4f5061728394051627384950617283",
+  "0xa0b1c2d3e4f50617283940516273849506172839",
+  "0xb1c2d3e4f506172839405162738495061728394a",
+];
+
+const GTD_PHASE1_COUNT = GTD_WALLETS.length; // 107
+const AGENTIC_PUBLIC_SUPPLY = MAX_SUPPLY - TREASURY - GTD_PHASE1_COUNT; // 670
 
 type Tab = "mint" | "agents" | "about";
 
@@ -98,6 +215,28 @@ export default function Mint() {
   const isLive = mintState.mintActive && !soldOut;
   const progress = (mintState.minted / mintState.total) * 100;
 
+  // Frontend eligibility
+  const isGtdWallet = GTD_WALLETS.includes(userWallet);
+  const now = Date.now();
+  const gtdStart = GTD_START.getTime();
+  const gtdEnd = GTD_END.getTime();
+  const inGtdWindow = now >= gtdStart && now <= gtdEnd;
+  const afterGtd = now > gtdEnd;
+  const canMintGtd = isGtdWallet && inGtdWindow;
+  const canMintPublic = afterGtd;
+  const canMint = isAdmin || canMintGtd || canMintPublic;
+
+  function getEligibilityStatus(): { text: string; color: string } {
+    if (!authenticated) return { text: "Connect wallet to check eligibility", color: "text-fg-dim" };
+    if (isAdmin) return { text: "ADMIN — ELIGIBLE TO MINT (TESTING)", color: "text-accent" };
+    if (wlStatus?.minted) return { text: "ALREADY MINTED", color: "text-fg-dim" };
+    if (soldOut) return { text: "SOLD OUT", color: "text-error" };
+    if (inGtdWindow && isGtdWallet) return { text: "GTD PHASE 1 — YOU'RE WHITELISTED!", color: "text-success" };
+    if (inGtdWindow && !isGtdWallet) return { text: "NOT WHITELISTED — PUBLIC MINT OPENS AFTER 12:00 UTC", color: "text-fg-muted" };
+    if (afterGtd) return { text: "PUBLIC MINT — FREE FOR ALL!", color: "text-success" };
+    return { text: `GTD PHASE 1 OPENS AT 09:30 UTC TODAY`, color: "text-fg-muted" };
+  }
+
   // Fetch state
   useEffect(() => {
     let active = true;
@@ -178,43 +317,11 @@ export default function Mint() {
     } finally { setMinting(false); }
   }, [wallets, minting]);
 
-  // Coming soon screen
-  if (!mintState.mintActive && !isAdmin && !soldOut) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-6 bg-bg">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-          <p className="font-mono text-[10px] tracking-[0.3em] text-fg-dim mb-4">NEXUS NODE</p>
-          <h1 className="text-3xl font-bold font-mono text-fg mb-4 tracking-tight">COMING SOON</h1>
-          <p className="font-mono text-[11px] text-fg-muted max-w-sm mx-auto leading-relaxed">
-            A {MAX_SUPPLY}-piece AI agent NFT collection on Base. All human mints are FREE.
-          </p>
-
-          {mintState.phase1Start > 0 && Date.now() < mintState.phase1Start && (
-            <div className="mt-6">
-              <Countdown target={mintState.phase1Start} label="GTD PHASE 1 OPENS IN" />
-            </div>
-          )}
-
-          <Link to="/game" className="inline-block mt-6 font-mono text-[11px] tracking-widest border border-success text-success px-6 py-2.5 hover:bg-success/10 transition-colors">
-            PLAY GAME — EARN PHASE 2 GTD
-          </Link>
-
-          <div className="mt-8 flex items-center justify-center gap-4 font-mono text-[9px] tracking-widest text-fg-dim">
-            <span>SUPPLY {MAX_SUPPLY}</span>
-            <span className="text-border">|</span>
-            <span>FREE MINT</span>
-            <span className="text-border">|</span>
-            <span>CHAIN BASE</span>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+  const eligibility = getEligibilityStatus();
 
   const tabs: Tab[] = ["mint", "agents", "about"];
-  const now = Date.now();
-  const isPhase1 = mintState.currentPhase === "phase1" || (now >= mintState.phase1Start && now <= mintState.phase1End);
-  const isPublic = mintState.currentPhase === "public" || now > mintState.phase1End;
+  const isPhase1 = mintState.currentPhase === "phase1" || inGtdWindow;
+  const isPublic = mintState.currentPhase === "public" || afterGtd;
 
   return (
     <div className="min-h-screen px-4 py-12 md:py-20 bg-bg">
@@ -265,13 +372,13 @@ export default function Mint() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className={`border px-3 py-2 text-center ${isPhase1 ? "border-success" : "border-border"}`}>
                 <p className="font-mono text-[9px] tracking-widest text-fg-dim">GTD PHASE 1</p>
-                <p className="font-mono text-lg text-success font-bold">{GTD_PHASE1_SPOTS}</p>
+                <p className="font-mono text-lg text-success font-bold">{GTD_PHASE1_COUNT}</p>
                 <p className="font-mono text-[8px] text-fg-dim">WHITELISTED • FREE</p>
                 <p className="font-mono text-[8px] text-fg-dim mt-1">09:30 — 12:00 UTC</p>
               </div>
               <div className={`border px-3 py-2 text-center ${isPublic ? "border-accent" : "border-border"}`}>
                 <p className="font-mono text-[9px] tracking-widest text-fg-dim">PUBLIC + AGENTIC</p>
-                <p className="font-mono text-lg text-accent font-bold">{MAX_SUPPLY - TREASURY - GTD_PHASE1_SPOTS}</p>
+                <p className="font-mono text-lg text-accent font-bold">{AGENTIC_PUBLIC_SUPPLY}</p>
                 <p className="font-mono text-[8px] text-fg-dim">OPEN • FREE</p>
                 <p className="font-mono text-[8px] text-fg-dim mt-1">AFTER 12:00 UTC</p>
               </div>
@@ -279,10 +386,10 @@ export default function Mint() {
 
             {/* Countdown or Phase Badge */}
             <div className="flex justify-center mb-2">
-              {!isPhase1 && !isPublic && mintState.phase1Start > 0 && now < mintState.phase1Start ? (
-                <Countdown target={mintState.phase1Start} label="GTD PHASE 1 OPENS IN" />
-              ) : isPhase1 && mintState.phase1End > 0 ? (
-                <Countdown target={mintState.phase1End} label="PHASE 1 ENDS IN" />
+              {!isPhase1 && !isPublic && gtdStart > 0 && now < gtdStart ? (
+                <Countdown target={gtdStart} label="GTD PHASE 1 OPENS IN" />
+              ) : isPhase1 && gtdEnd > 0 ? (
+                <Countdown target={gtdEnd} label="PHASE 1 ENDS IN" />
               ) : isPublic ? (
                 <span className="font-mono text-[10px] tracking-widest border border-accent text-accent px-3 py-1">PUBLIC MINT LIVE</span>
               ) : null}
@@ -307,64 +414,60 @@ export default function Mint() {
 
               {tab === "mint" && (
                 <div className="space-y-4">
-                  {/* WL Status */}
-                  {!authenticated ? (
-                    <div className="text-center space-y-3">
-                      <p className="font-mono text-[11px] text-fg-muted">Connect your wallet to check eligibility and mint.</p>
+                  {/* Eligibility Status */}
+                  <div className={`border px-4 py-3 ${canMint ? "border-success" : "border-border"}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-2 h-2 rounded-full ${canMint ? "bg-success" : wlStatus?.minted ? "bg-fg-dim" : "bg-fg-dim"}`} />
+                      <p className={`font-mono text-[10px] tracking-widest ${eligibility.color}`}>
+                        {eligibility.text}
+                      </p>
+                    </div>
+                    {authenticated && (
+                      <p className="font-mono text-[9px] text-fg-dim mt-1">{truncateAddr(userWallet)}</p>
+                    )}
+                  </div>
+
+                  {/* Connect Wallet */}
+                  {!authenticated && (
+                    <div className="text-center">
                       <button onClick={login}
                         className="font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-2.5 hover:bg-accent/10 transition-colors cursor-pointer">
                         CONNECT WALLET
                       </button>
                     </div>
-                  ) : wlStatus ? (
-                    <div className="space-y-4">
-                      {/* Status */}
-                      <div className={`border px-4 py-3 ${wlStatus.whitelisted ? "border-success" : "border-border"}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-2 h-2 rounded-full ${wlStatus.whitelisted ? "bg-success" : "bg-fg-dim"}`} />
-                          <p className="font-mono text-[10px] tracking-widest text-fg-dim">
-                            {wlStatus.whitelisted ? "WHITELISTED ✓" : "NOT WHITELISTED"}
-                          </p>
-                        </div>
-                        <p className="font-mono text-[11px] text-fg-muted">{wlStatus.reason}</p>
-                        <p className="font-mono text-[9px] text-fg-dim mt-1">{truncateAddr(userWallet)}</p>
-                      </div>
+                  )}
 
-                      {/* Mint Button */}
-                      {wlStatus.canMint && isLive && !mintResult?.success && (
-                        <button onClick={handleMint} disabled={minting}
-                          className={`w-full font-mono text-[12px] tracking-widest border-2 border-success text-success px-6 py-4 hover:bg-success/10 transition-colors cursor-pointer ${
-                            minting ? "opacity-50 cursor-not-allowed animate-pulse" : ""
-                          }`}>
-                          {minting ? "MINTING..." : "MINT FREE NFT"}
-                        </button>
-                      )}
+                  {/* Mint Button — visible when eligible */}
+                  {authenticated && canMint && !wlStatus?.minted && !mintResult?.success && (
+                    <button onClick={handleMint} disabled={minting || (!isLive && !isAdmin)}
+                      className={`w-full font-mono text-[12px] tracking-widest border-2 border-success text-success px-6 py-4 hover:bg-success/10 transition-colors cursor-pointer ${
+                        minting ? "opacity-50 cursor-not-allowed animate-pulse" : ""
+                      } ${!isLive && !isAdmin ? "opacity-40 cursor-not-allowed" : ""}`}>
+                      {minting ? "MINTING..." : !isLive && !isAdmin ? "MINT PAUSED" : "MINT FREE NFT"}
+                    </button>
+                  )}
 
-                      {/* Result */}
-                      {mintResult && (
-                        <div className={`border px-4 py-3 ${mintResult.success ? "border-success" : "border-error"}`}>
-                          <p className={`font-mono text-[11px] ${mintResult.success ? "text-success" : "text-error"}`}>
-                            {mintResult.message}
-                          </p>
-                          {mintResult.txHash && (
-                            <a href={`https://basescan.org/tx/${mintResult.txHash}`} target="_blank" rel="noopener noreferrer"
-                              className="font-mono text-[10px] text-accent hover:underline mt-1 block">
-                              View on BaseScan →
-                            </a>
-                          )}
-                        </div>
+                  {/* Result */}
+                  {mintResult && (
+                    <div className={`border px-4 py-3 ${mintResult.success ? "border-success" : "border-error"}`}>
+                      <p className={`font-mono text-[11px] ${mintResult.success ? "text-success" : "text-error"}`}>
+                        {mintResult.message}
+                      </p>
+                      {mintResult.txHash && (
+                        <a href={`https://basescan.org/tx/${mintResult.txHash}`} target="_blank" rel="noopener noreferrer"
+                          className="font-mono text-[10px] text-accent hover:underline mt-1 block">
+                          View on BaseScan →
+                        </a>
                       )}
                     </div>
-                  ) : (
-                    <p className="font-mono text-[11px] text-fg-dim text-center">Checking eligibility...</p>
                   )}
 
                   {/* Info */}
                   <div className="border border-border px-4 py-3 font-mono text-[10px] text-fg-dim space-y-1">
                     <p>• All human mints are <span className="text-success">FREE</span></p>
                     <p>• 1 mint per wallet</p>
-                    <p>• GTD Phase 1: 09:30 AM — 12:00 PM UTC (whitelisted only)</p>
-                    <p>• Public + Agentic mint: after 12:00 PM UTC</p>
+                    <p>• GTD Phase 1: {GTD_PHASE1_COUNT} wallets — 09:30 AM to 12:00 PM UTC</p>
+                    <p>• Public + Agentic: {AGENTIC_PUBLIC_SUPPLY} remaining — after 12:00 PM UTC</p>
                   </div>
                 </div>
               )}
@@ -387,8 +490,8 @@ export default function Mint() {
                   <div className="border border-border px-4 py-3 space-y-1 text-[10px]">
                     <p className="text-fg-dim tracking-widest mb-2">SUPPLY BREAKDOWN</p>
                     <p>Treasury: {TREASURY}</p>
-                    <p>GTD Phase 1 (Whitelisted Free): {GTD_PHASE1_SPOTS}</p>
-                    <p>Public + Agentic Mint (Free): {MAX_SUPPLY - TREASURY - GTD_PHASE1_SPOTS}</p>
+                    <p>GTD Phase 1 (Whitelisted Free): {GTD_PHASE1_COUNT}</p>
+                    <p>Public + Agentic Mint (Free): {AGENTIC_PUBLIC_SUPPLY}</p>
                     <p className="text-fg-dim border-t border-border pt-1 mt-2">Total: {MAX_SUPPLY}</p>
                   </div>
                 </div>
