@@ -359,6 +359,12 @@ export default function Mint() {
                     <p>• GTD Phase 1: {GTD_PHASE1_COUNT} wallets — 09:30 AM to 12:00 PM UTC</p>
                     <p>• Public + Agentic: {AGENTIC_PUBLIC_SUPPLY} remaining — after 12:00 PM UTC</p>
                   </div>
+
+                  {/* OpenSea */}
+                  <a href="https://opensea.io/collection/nexus-node-518105517" target="_blank" rel="noopener noreferrer"
+                    className="block w-full text-center font-mono text-[11px] tracking-widest border border-accent text-accent px-6 py-3 hover:bg-accent/10 transition-colors cursor-pointer">
+                    VIEW ON OPENSEA →
+                  </a>
                 </div>
               )}
 
