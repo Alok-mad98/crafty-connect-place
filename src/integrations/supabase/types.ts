@@ -86,6 +86,30 @@ export type Database = {
         }
         Relationships: []
       }
+      gtd_whitelist: {
+        Row: {
+          created_at: string
+          id: string
+          minted: boolean
+          phase: string
+          wallet: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          minted?: boolean
+          phase?: string
+          wallet: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          minted?: boolean
+          phase?: string
+          wallet?: string
+        }
+        Relationships: []
+      }
       purchases: {
         Row: {
           buyer_wallet: string
