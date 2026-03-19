@@ -22,6 +22,7 @@ const PHASE1_END = new Date("2026-03-19T12:00:00Z").getTime();
 
 const NFT_ABI = [
   "function mintTo(address to) external",
+  "function toggleMint(bool _active) external",
   "function totalMinted() external view returns (uint256)",
   "function mintActive() external view returns (bool)",
   "function hasMinted(address) external view returns (bool)",
@@ -423,6 +424,17 @@ async function handleAdminToggle(req: Request): Promise<Response> {
     return err("Invalid signature", 403);
   }
 
+  // Toggle on-chain mintActive
+  try {
+    const contract = getContract();
+    const tx = await contract.toggleMint(active);
+    await tx.wait();
+  } catch (e) {
+    console.error("On-chain toggle error:", e);
+    return err("Failed to toggle mint on-chain: " + (e instanceof Error ? e.message : "Unknown"), 500);
+  }
+
+  // Update DB
   const supabase = getSupabase();
   await supabase.from("mint_config").upsert(
     { key: "mint_active", value: String(active) },
