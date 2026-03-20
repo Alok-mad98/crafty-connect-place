@@ -101,6 +101,12 @@ export default function Mine() {
     id: number; winBlock: number; totalETH: string; totalNexus: string; vaultTriggered: boolean;
   }>>([]);
 
+  // Accumulated unclaimed rounds
+  const [unclaimedRounds, setUnclaimedRounds] = useState<Array<{
+    id: number; wonETH: boolean; wonNexus: boolean;
+  }>>([]);
+  const [claimingAll, setClaimingAll] = useState(false);
+
   // ---------------------------------------------------------------------------
   // CONTRACT HELPERS
   // ---------------------------------------------------------------------------
@@ -347,6 +353,69 @@ export default function Mine() {
       setError(e instanceof Error ? e.message.slice(0, 100) : "Claim failed");
     }
     setLoading(false);
+  };
+
+  // Scan for unclaimed winning rounds
+  const fetchUnclaimedRounds = useCallback(async () => {
+    if (!wallets[0] || roundId <= 0) return;
+    try {
+      const contract = await getMiningContract();
+      const addr = wallets[0].address;
+      const unclaimed: Array<{ id: number; wonETH: boolean; wonNexus: boolean }> = [];
+      // Scan last 50 rounds (or all if fewer)
+      const startRound = Math.max(1, roundId - 50);
+      for (let rid = startRound; rid <= roundId; rid++) {
+        try {
+          const info = await contract.getRoundInfo(rid);
+          if (!info.settled) continue;
+          const playerDeploy = await contract.getPlayerDeploy(rid, addr);
+          if (playerDeploy.claimed) continue;
+          // Check if player deployed on winning block
+          const winBlock = Number(info.winningBlock);
+          const ethBlocks: number[] = playerDeploy.ethBlocks.map((b: bigint | number) => Number(b));
+          const nexusBlocks: number[] = playerDeploy.nexusBlocks.map((b: bigint | number) => Number(b));
+          const wonETH = ethBlocks.includes(winBlock) && Number(playerDeploy.ethPerBlock) > 0;
+          const wonNexus = nexusBlocks.includes(winBlock) && Number(playerDeploy.nexusPerBlock) > 0;
+          // Only if they actually deployed in this round
+          if (ethBlocks.length > 0 || nexusBlocks.length > 0) {
+            unclaimed.push({ id: rid, wonETH, wonNexus });
+          }
+        } catch { continue; }
+      }
+      setUnclaimedRounds(unclaimed);
+    } catch (e) {
+      console.error("fetchUnclaimedRounds error:", e);
+    }
+  }, [wallets, roundId, getMiningContract]);
+
+  // Fetch unclaimed rounds when tab changes to rewards or when roundId changes
+  useEffect(() => {
+    if (tab === "rewards") fetchUnclaimedRounds();
+  }, [tab, roundId, fetchUnclaimedRounds]);
+
+  // Claim all unclaimed rounds in sequence
+  const handleClaimAllRounds = async () => {
+    if (unclaimedRounds.length === 0) return;
+    setClaimingAll(true);
+    setError("");
+    setSuccess("");
+    try {
+      const contract = await getMiningContract(true);
+      let claimed = 0;
+      for (const round of unclaimedRounds) {
+        try {
+          const tx = await contract.claimRound(round.id);
+          await tx.wait();
+          claimed++;
+        } catch { /* skip failed claims */ }
+      }
+      setSuccess(`Claimed ${claimed} round${claimed !== 1 ? "s" : ""}!`);
+      fetchGameState();
+      fetchUnclaimedRounds();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message.slice(0, 100) : "Claim failed");
+    }
+    setClaimingAll(false);
   };
 
   // Scan for all NFTs owned by user
@@ -807,7 +876,19 @@ export default function Mine() {
                       <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-blue-400/30 text-blue-400 text-center bg-blue-400/5">
                         NEXT ROUND IN {bufferTime}s
                       </div>
-                    ) : timeLeft > 0 && !roundSettled ? (
+                    ) : !gameActive ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-fg-dim/30 text-fg-dim text-center bg-bg-card">
+                        GAME NOT ACTIVE — WAITING FOR START
+                      </div>
+                    ) : roundSettled ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-success/30 text-success text-center bg-success/5">
+                        BLOCK {winningBlock !== null ? winningBlock + 1 : "?"} WON! — Rewards accumulate in REWARDS tab
+                      </div>
+                    ) : timeLeft === 0 ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center bg-orange-400/5 animate-pulse">
+                        SETTLING ROUND...
+                      </div>
+                    ) : (
                       <motion.button
                         onClick={handleDeploy}
                         disabled={loading || deployed || selectedBlocks.size === 0 || !amount}
@@ -820,27 +901,6 @@ export default function Mine() {
                         }`}
                       >
                         {loading ? "DEPLOYING..." : deployed ? "DEPLOYED — WAITING..." : `DEPLOY ${currency}`}
-                      </motion.button>
-                    ) : roundSettled ? (
-                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-success/30 text-success text-center bg-success/5">
-                        BLOCK {winningBlock !== null ? winningBlock + 1 : "?"} WON! — Check rewards tab to claim
-                      </div>
-                    ) : (
-                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center bg-orange-400/5 animate-pulse">
-                        SETTLING ROUND...
-                      </div>
-                    )}
-
-                    {/* Claim Round Button */}
-                    {roundSettled && roundId > 0 && (
-                      <motion.button
-                        onClick={() => handleClaimRound(roundId)}
-                        disabled={loading}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="w-full py-3 font-mono text-[11px] tracking-widest border border-success text-success hover:bg-success/10 rounded transition-all cursor-pointer disabled:opacity-30"
-                      >
-                        {loading ? "CLAIMING..." : `CLAIM ROUND #${roundId} WINNINGS`}
                       </motion.button>
                     )}
 
@@ -882,6 +942,50 @@ export default function Mine() {
               className="max-w-lg"
             >
               <div className="space-y-4">
+                {/* Accumulated Round Winnings */}
+                <div className="border border-border rounded-md p-6">
+                  <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
+                    ROUND WINNINGS
+                  </p>
+                  {unclaimedRounds.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-6 mb-4">
+                        <div>
+                          <p className="font-mono text-[9px] text-fg-dim mb-1">UNCLAIMED ROUNDS</p>
+                          <p className="font-mono text-xl text-fg">{unclaimedRounds.length}</p>
+                        </div>
+                        <div>
+                          <p className="font-mono text-[9px] text-fg-dim mb-1">WINNING ROUNDS</p>
+                          <p className="font-mono text-xl text-success">
+                            {unclaimedRounds.filter(r => r.wonETH || r.wonNexus).length}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1 mb-4 max-h-32 overflow-y-auto">
+                        {unclaimedRounds.map((r) => (
+                          <div key={r.id} className="flex items-center justify-between py-1 border-b border-border/20">
+                            <span className="font-mono text-[9px] text-fg-muted">Round #{r.id}</span>
+                            <span className={`font-mono text-[9px] ${r.wonETH || r.wonNexus ? "text-success" : "text-fg-dim"}`}>
+                              {r.wonETH && r.wonNexus ? "WON ETH + NEXUS" : r.wonETH ? "WON ETH" : r.wonNexus ? "WON NEXUS" : "DEPLOYED"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={handleClaimAllRounds}
+                        disabled={claimingAll}
+                        className="w-full py-3 font-mono text-[10px] tracking-widest border border-success text-success hover:bg-success/10 rounded transition-colors cursor-pointer disabled:opacity-30"
+                      >
+                        {claimingAll ? "CLAIMING ALL..." : `CLAIM ALL ${unclaimedRounds.length} ROUNDS`}
+                      </button>
+                    </>
+                  ) : (
+                    <p className="font-mono text-[9px] text-fg-dim">
+                      No unclaimed rounds. Play rounds to accumulate winnings.
+                    </p>
+                  )}
+                </div>
+
                 {/* Cooling Balances */}
                 <div className="border border-border rounded-md p-6">
                   <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-4">
