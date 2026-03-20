@@ -278,6 +278,74 @@ export default function Mine() {
     setLoading(false);
   };
 
+  const handleClaimRound = async (rid: number) => {
+    setLoading(true);
+    setError("");
+    try {
+      const contract = await getMiningContract(true);
+      const tx = await contract.claimRound(rid);
+      await tx.wait();
+      setSuccess(`Claimed round ${rid} winnings!`);
+      fetchGameState();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message.slice(0, 100) : "Claim failed");
+    }
+    setLoading(false);
+  };
+
+  const handleStakeNFT = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const provider = await getProvider();
+      const signer = await provider.getSigner();
+      // Find user's NFT tokenId
+      const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, [
+        "function balanceOf(address) view returns (uint256)",
+        "function tokenOfOwnerByIndex(address, uint256) view returns (uint256)",
+        "function approve(address, uint256) external",
+        "function getApproved(uint256) view returns (address)",
+      ], signer);
+      const balance = await nft.balanceOf(wallets[0].address);
+      if (balance === 0n) {
+        setError("You don't own a Nexus Node NFT. Mint one first at /mint");
+        setLoading(false);
+        return;
+      }
+      const tokenId = await nft.tokenOfOwnerByIndex(wallets[0].address, 0);
+      // Approve DataMining contract
+      const approved = await nft.getApproved(tokenId);
+      if (approved.toLowerCase() !== DATA_MINING_ADDRESS.toLowerCase()) {
+        const approveTx = await nft.approve(DATA_MINING_ADDRESS, tokenId);
+        await approveTx.wait();
+      }
+      // Stake
+      const contract = await getMiningContract(true);
+      const tx = await contract.stakeNFT(tokenId);
+      await tx.wait();
+      setSuccess(`Staked NFT #${tokenId}!`);
+      fetchGameState();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message.slice(0, 100) : "Stake failed");
+    }
+    setLoading(false);
+  };
+
+  const handleUnstakeNFT = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const contract = await getMiningContract(true);
+      const tx = await contract.unstakeNFT();
+      await tx.wait();
+      setSuccess("NFT unstaked!");
+      fetchGameState();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message.slice(0, 100) : "Unstake failed");
+    }
+    setLoading(false);
+  };
+
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
@@ -514,7 +582,7 @@ export default function Mine() {
                       </div>
                     </div>
 
-                    {/* NFT Status */}
+                    {/* NFT Status + Stake/Unstake */}
                     <div className="border border-border rounded-md p-4">
                       <p className="font-mono text-[9px] tracking-widest text-fg-dim mb-2">NFT BOOST</p>
                       <div className="flex items-center justify-between">
@@ -525,10 +593,22 @@ export default function Mine() {
                           {playerMult}
                         </span>
                       </div>
-                      {!hasNFTStaked && (
-                        <p className="font-mono text-[8px] text-fg-dim mt-1">
-                          Stake your Nexus Node NFT for payout multipliers
-                        </p>
+                      {hasNFTStaked ? (
+                        <button
+                          onClick={handleUnstakeNFT}
+                          disabled={loading}
+                          className="w-full mt-3 py-2 font-mono text-[9px] tracking-widest border border-border text-fg-dim hover:text-error hover:border-error/50 rounded transition-colors cursor-pointer disabled:opacity-30"
+                        >
+                          UNSTAKE NFT
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleStakeNFT}
+                          disabled={loading}
+                          className="w-full mt-3 py-2 font-mono text-[9px] tracking-widest border border-accent/50 text-accent hover:bg-accent/10 rounded transition-colors cursor-pointer disabled:opacity-30"
+                        >
+                          STAKE NFT FOR BOOST
+                        </button>
                       )}
                     </div>
 
@@ -556,6 +636,19 @@ export default function Mine() {
                         className="w-full py-3 font-mono text-[11px] tracking-widest border border-accent text-accent hover:bg-accent/10 rounded transition-all cursor-pointer disabled:opacity-30"
                       >
                         {loading ? "SETTLING..." : roundSettled ? "ROUND SETTLED" : "SETTLE ROUND"}
+                      </motion.button>
+                    )}
+
+                    {/* Claim Round Button */}
+                    {roundSettled && roundId > 0 && (
+                      <motion.button
+                        onClick={() => handleClaimRound(roundId)}
+                        disabled={loading}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full py-3 font-mono text-[11px] tracking-widest border border-success text-success hover:bg-success/10 rounded transition-all cursor-pointer disabled:opacity-30"
+                      >
+                        {loading ? "CLAIMING..." : `CLAIM ROUND #${roundId} WINNINGS`}
                       </motion.button>
                     )}
 
