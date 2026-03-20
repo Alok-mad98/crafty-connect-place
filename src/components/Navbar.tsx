@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/forge", label: "FORGE" },
   { href: "/mint", label: "MINT" },
   { href: "/mine", label: "MINE" },
+  { href: "/agents", label: "AGENTS" },
   { href: "/game", label: "GAME" },
 ];
 

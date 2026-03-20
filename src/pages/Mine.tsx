@@ -299,24 +299,41 @@ export default function Mine() {
     try {
       const provider = await getProvider();
       const signer = await provider.getSigner();
-      // Find user's NFT tokenId
+      const addr = wallets[0].address;
       const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, [
         "function balanceOf(address) view returns (uint256)",
-        "function tokenOfOwnerByIndex(address, uint256) view returns (uint256)",
-        "function approve(address, uint256) external",
-        "function getApproved(uint256) view returns (address)",
+        "function ownerOf(uint256) view returns (address)",
+        "function setApprovalForAll(address, bool) external",
+        "function isApprovedForAll(address, address) view returns (bool)",
+        "function totalMinted() view returns (uint256)",
       ], signer);
-      const balance = await nft.balanceOf(wallets[0].address);
+      const balance = await nft.balanceOf(addr);
       if (balance === 0n) {
         setError("You don't own a Nexus Node NFT. Mint one first at /mint");
         setLoading(false);
         return;
       }
-      const tokenId = await nft.tokenOfOwnerByIndex(wallets[0].address, 0);
-      // Approve DataMining contract
-      const approved = await nft.getApproved(tokenId);
-      if (approved.toLowerCase() !== DATA_MINING_ADDRESS.toLowerCase()) {
-        const approveTx = await nft.approve(DATA_MINING_ADDRESS, tokenId);
+      // Find first token owned by scanning (no ERC721Enumerable)
+      const totalMinted = await nft.totalMinted();
+      let tokenId = -1;
+      for (let i = 0; i < Number(totalMinted); i++) {
+        try {
+          const owner = await nft.ownerOf(i);
+          if (owner.toLowerCase() === addr.toLowerCase()) {
+            tokenId = i;
+            break;
+          }
+        } catch { continue; }
+      }
+      if (tokenId === -1) {
+        setError("Could not find your NFT token ID");
+        setLoading(false);
+        return;
+      }
+      // Approve DataMining contract via setApprovalForAll
+      const isApproved = await nft.isApprovedForAll(addr, DATA_MINING_ADDRESS);
+      if (!isApproved) {
+        const approveTx = await nft.setApprovalForAll(DATA_MINING_ADDRESS, true);
         await approveTx.wait();
       }
       // Stake

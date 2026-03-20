@@ -9,6 +9,7 @@ import Mint from "@/pages/Mint";
 import MintDocs from "@/pages/MintDocs";
 import SpaceGame from "@/pages/SpaceGame";
 import Mine from "@/pages/Mine";
+import Agents from "@/pages/Agents";
 import NotFound from "@/pages/NotFound";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
             <Route path="/mint" element={<Mint />} />
             <Route path="/mint/docs" element={<MintDocs />} />
             <Route path="/mine" element={<Mine />} />
+            <Route path="/agents" element={<Agents />} />
             <Route path="/game" element={<SpaceGame />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
