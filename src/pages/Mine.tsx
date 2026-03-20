@@ -197,37 +197,39 @@ export default function Mine() {
     return () => clearInterval(timer);
   }, [timeLeft, gameActive]);
 
-  // Auto-settle when round timer hits 0, then auto-claim
+  // Auto-settle via server (no user signature needed)
   useEffect(() => {
     if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling) return;
     const doAutoSettle = async () => {
       setAutoSettling(true);
       try {
-        const contract = await getMiningContract(true);
-        const tx = await contract.settleRound();
-        await tx.wait();
-        setSuccess("Round auto-settled!");
+        // Server-side settlement — deployer wallet pays gas, user signs nothing
+        const apiBase = import.meta.env.VITE_API_BASE || "";
+        await fetch(`${apiBase}/agent-mint/settle`, { method: "POST" });
+        // Wait a moment for chain to confirm, then refresh
+        await new Promise((r) => setTimeout(r, 3000));
         await fetchGameState();
 
-        // Auto-claim winnings for this round
-        try {
-          const claimTx = await contract.claimRound(roundId);
-          await claimTx.wait();
-          setSuccess("Winnings claimed!");
-        } catch {
-          // May not have played this round, or already claimed
+        // Auto-claim winnings (this IS a user tx since it sends ETH/NEXUS to them)
+        if (authenticated && wallets[0]) {
+          try {
+            const contract = await getMiningContract(true);
+            const claimTx = await contract.claimRound(roundId);
+            await claimTx.wait();
+            setSuccess("Winnings claimed!");
+          } catch {
+            // Not deployed this round or already claimed
+          }
+          fetchGameState();
         }
-        fetchGameState();
       } catch {
-        // Someone else may have settled, just refresh
         fetchGameState();
       }
       setAutoSettling(false);
     };
-    // Small delay to let chain confirm time
     const timeout = setTimeout(doAutoSettle, 2000);
     return () => clearTimeout(timeout);
-  }, [timeLeft, gameActive, roundSettled, autoSettling, roundId, getMiningContract, fetchGameState]);
+  }, [timeLeft, gameActive, roundSettled, autoSettling, roundId, authenticated, wallets, getMiningContract, fetchGameState]);
 
   // Buffer period: 5 seconds between rounds + reset state for new round
   useEffect(() => {
@@ -591,22 +593,24 @@ export default function Mine() {
                   <div>
                     <div className="grid grid-cols-5 gap-2 max-w-[500px] mx-auto lg:mx-0">
                       {Array.from({ length: 25 }, (_, i) => {
-                        const isSelected = selectedBlocks.has(i);
+                        const isSelected = selectedBlocks.has(i) && !deployed;
                         const isWinner = winningBlock === i && roundSettled;
                         const ethDep = parseFloat(blockDeploymentsETH[i] || "0");
                         const nexDep = parseFloat(blockDeploymentsNexus[i] || "0");
                         const hasDeployments = ethDep > 0 || nexDep > 0;
+                        const isDisabled = !canInteract;
 
                         return (
                           <motion.button
                             key={i}
                             onClick={() => toggleBlock(i)}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={canInteract ? { scale: 1.05 } : {}}
+                            whileTap={canInteract ? { scale: 0.95 } : {}}
                             className={`
-                              aspect-square rounded-md border transition-all duration-200 flex flex-col items-center justify-center gap-1 cursor-pointer relative
+                              aspect-square rounded-md border transition-all duration-200 flex flex-col items-center justify-center gap-1 relative
+                              ${isDisabled && !isWinner ? "opacity-60 cursor-default" : "cursor-pointer"}
                               ${isWinner
-                                ? "border-accent bg-accent/20 ring-2 ring-accent shadow-[0_0_20px_rgba(200,170,100,0.3)]"
+                                ? "border-accent bg-accent/20 ring-2 ring-accent shadow-[0_0_30px_rgba(200,170,100,0.4)] z-10"
                                 : isSelected
                                   ? "border-accent bg-accent/10"
                                   : hasDeployments

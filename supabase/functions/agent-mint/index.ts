@@ -142,6 +142,13 @@ const NFT_ABI = [
   "function mintPrice() external view returns (uint256)",
 ];
 
+const DATA_MINING_ADDRESS = "0xe0fB97698dD52ED24eEAA3445f9239229822e02e";
+const DATA_MINING_ABI = [
+  "function settleRound() external",
+  "function getGameState() external view returns (uint256 roundId, uint256 startTime, uint256 timeRemaining, bool active, uint256 vault, uint256 rewards)",
+  "function claimRound(uint256 roundId) external",
+];
+
 // --- Helpers ---
 
 function json(data: unknown, status = 200) {
@@ -560,6 +567,42 @@ async function handleAdminToggle(req: Request): Promise<Response> {
   return json({ success: true, mintActive: active });
 }
 
+// --- Auto-Settle (server-side, no user signature needed) ---
+
+async function handleSettle(): Promise<Response> {
+  try {
+    const pk = Deno.env.get("DEPLOYER_PRIVATE_KEY");
+    if (!pk) return err("Server not configured for settlement", 500);
+
+    const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+    const wallet = new ethers.Wallet(pk, provider);
+    const mining = new ethers.Contract(DATA_MINING_ADDRESS, DATA_MINING_ABI, wallet);
+
+    // Check game state
+    const gs = await mining.getGameState();
+    const timeRemaining = Number(gs[2]);
+    const active = gs[3];
+
+    if (!active) return json({ settled: false, reason: "Game not active" });
+    if (timeRemaining > 0) return json({ settled: false, reason: "Round not over yet", timeRemaining });
+
+    // Settle the round
+    const tx = await mining.settleRound();
+    const receipt = await tx.wait();
+
+    return json({
+      settled: true,
+      txHash: receipt.hash,
+      roundId: Number(gs[0]),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    if (msg.includes("Already settled")) return json({ settled: false, reason: "Already settled" });
+    console.error("Settle error:", msg);
+    return err("Settlement failed: " + msg.slice(0, 100), 500);
+  }
+}
+
 // --- Router ---
 
 Deno.serve(async (req) => {
@@ -578,6 +621,7 @@ Deno.serve(async (req) => {
     if (path === "/check-wl" && req.method === "GET") return handleCheckWL(req);
     if (path === "/state" && req.method === "GET") return handleState(req);
     if (path === "/admin/toggle" && req.method === "POST") return handleAdminToggle(req);
+    if (path === "/settle" && req.method === "POST") return handleSettle();
 
     return json({
       name: "Nexus Node Agent Mint API",
@@ -588,6 +632,7 @@ Deno.serve(async (req) => {
         "POST /human-mint",
         "GET  /check-wl?wallet=0x...",
         "GET  /state",
+        "POST /settle",
       ],
     }, 404);
   } catch (e) {
