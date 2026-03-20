@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
-
-// ---------------------------------------------------------------------------
-// CONFIG — update after deploying DataMining.sol
-// ---------------------------------------------------------------------------
-const DATA_MINING_ADDRESS = import.meta.env.VITE_DATA_MINING_ADDRESS || "";
-const NEXUS_TOKEN_ADDRESS = import.meta.env.VITE_NEXUS_TOKEN_ADDRESS || "";
-const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID) || 8453;
+import {
+  DATA_MINING_ADDRESS,
+  NEXUS_TOKEN_ADDRESS,
+  NEXUS_AGENT_NFT_ADDRESS,
+  CHAIN_ID,
+} from "@/lib/contracts";
 
 const MINING_ABI = [
   "function deployETH(uint8[] blocks) external payable",

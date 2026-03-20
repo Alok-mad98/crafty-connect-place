@@ -77,6 +77,11 @@ contract DataMining is Ownable, ReentrancyGuard {
         bool settled;
         uint256 settledAt;
         bool vaultTriggered;
+        // Safe emission & vault distribution (computed during settle)
+        bool hasEmission;                  // true if NEXUS emission allocated this round
+        uint256 vaultPayoutAmount;         // vault snapshot when triggered (vault zeroed)
+        uint256 totalWinnerWeight;         // sum of multipliers of all winners
+        uint256 totalNftWinnerWeight;      // sum of multipliers of NFT-holding winners
     }
 
     struct PlayerDeploy {
@@ -288,6 +293,27 @@ contract DataMining is Ownable, ReentrancyGuard {
         rd.settled = true;
         rd.settledAt = block.timestamp;
 
+        // --- Compute winner weights for safe emission/vault distribution ---
+        {
+            uint256 _totalWeight = 0;
+            uint256 _nftWeight = 0;
+            address[] storage players = roundPlayers[currentRoundId];
+            for (uint256 i = 0; i < players.length; i++) {
+                address p = players[i];
+                PlayerDeploy storage _pd = playerDeploys[currentRoundId][p];
+                bool isWinner = _isOnBlock(_pd.ethBlocks, winningBlock) || _isOnBlock(_pd.nexusBlocks, winningBlock);
+                if (isWinner) {
+                    uint256 mult = getMultiplier(p);
+                    _totalWeight += mult;
+                    if (hasStakedNFT[p]) {
+                        _nftWeight += mult;
+                    }
+                }
+            }
+            rd.totalWinnerWeight = _totalWeight > 0 ? _totalWeight : 10000;
+            rd.totalNftWinnerWeight = _nftWeight > 0 ? _nftWeight : 10000;
+        }
+
         // --- Process ETH pool ---
         if (rd.totalETH > 0) {
             uint256 adminFeeETH = (rd.totalETH * ADMIN_FEE_BPS) / 10000;
@@ -324,8 +350,8 @@ contract DataMining is Ownable, ReentrancyGuard {
         // --- Emit NEXUS rewards from pool ---
         if (rewardsPool >= NEXUS_PER_ROUND + VAULT_PER_ROUND) {
             rewardsPool -= (NEXUS_PER_ROUND + VAULT_PER_ROUND);
+            rd.hasEmission = true;
 
-            // 1 NEXUS to winners (added to uncooled balances during claim calculation)
             // 0.3 NEXUS to Nexus Vault
             nexusVault += VAULT_PER_ROUND;
 
@@ -339,8 +365,9 @@ contract DataMining is Ownable, ReentrancyGuard {
 
             if (vaultRoll == 0 && nexusVault > 0) {
                 rd.vaultTriggered = true;
-                emit VaultPayout(currentRoundId, nexusVault);
-                // Vault distributed during claim
+                rd.vaultPayoutAmount = nexusVault;  // Snapshot vault
+                nexusVault = 0;                      // Zero vault (BUG FIX)
+                emit VaultPayout(currentRoundId, rd.vaultPayoutAmount);
             }
         }
 
@@ -398,10 +425,9 @@ contract DataMining is Ownable, ReentrancyGuard {
         uint256 vaultFee = (losers * VAULT_FEE_BPS) / 10000;
         uint256 distributable = rd.totalETH - adminFee - vaultFee;
 
-        uint256 ethWon = (distributable * pd.ethPerBlock) / blockTotal;
-        uint256 profit = ethWon > pd.ethPerBlock ? ethWon - pd.ethPerBlock : 0;
-        uint256 bonusProfit = (profit * getMultiplier(msg.sender)) / 10000;
-        uint256 payout = pd.ethPerBlock + bonusProfit;
+        // Proportional payout only — no multiplier on prize pool (zero-sum safe)
+        // NFT multiplier applies to NEXUS emissions instead (see _claimEmission)
+        uint256 payout = (distributable * pd.ethPerBlock) / blockTotal;
 
         if (payout > 0) {
             (bool sent, ) = msg.sender.call{value: payout}("");
@@ -421,30 +447,30 @@ contract DataMining is Ownable, ReentrancyGuard {
         uint256 vaultFee = (losers * VAULT_FEE_BPS) / 10000;
         uint256 distributable = rd.totalNexus - adminFee - vaultFee;
 
+        // Proportional payout only — no bonus on prize pool (zero-sum safe)
         uint256 nexusWon = (distributable * pd.nexusPerBlock) / blockTotal;
-        nexusWon = (nexusWon * getNexusBonus(msg.sender)) / 10000;
 
         uncooledBalance[msg.sender] += nexusWon;
         totalUncooled += nexusWon;
         emit Winnings(roundId, msg.sender, 0, nexusWon);
     }
 
-    function _claimEmission(uint256 roundId, RoundData storage rd) internal {
-        // Round NEXUS emission split among winners
-        if (rewardsPool > 0) {
-            uint256 winners = _countWinners(roundId);
-            uint256 share = NEXUS_PER_ROUND / winners;
+    function _claimEmission(uint256 /* roundId */, RoundData storage rd) internal {
+        // Round NEXUS emission — weighted by NFT multiplier
+        // NFT holders get bigger share of emission (THIS is where multiplier matters)
+        // Safe: totalWinnerWeight pre-computed during settle, sum of shares <= NEXUS_PER_ROUND
+        if (rd.hasEmission) {
+            uint256 myWeight = getMultiplier(msg.sender);
+            uint256 share = (NEXUS_PER_ROUND * myWeight) / rd.totalWinnerWeight;
             uncooledBalance[msg.sender] += share;
             totalUncooled += share;
         }
 
-        // Nexus Vault payout (NFT holders only)
-        if (rd.vaultTriggered && hasStakedNFT[msg.sender] && nexusVault > 0) {
-            uint256 nftWinners = _countNFTWinners(roundId);
-            uint256 vaultShare = nexusVault / nftWinners;
-            Rarity r = getPlayerRarity(msg.sender);
-            if (r == Rarity.UltraRare) vaultShare = (vaultShare * 2);
-            else if (r == Rarity.Rare) vaultShare = (vaultShare * 3) / 2;
+        // Nexus Vault payout (NFT holders only, weighted by rarity)
+        // Safe: vaultPayoutAmount snapshotted during settle, vault zeroed
+        if (rd.vaultTriggered && hasStakedNFT[msg.sender] && rd.vaultPayoutAmount > 0) {
+            uint256 myWeight = getMultiplier(msg.sender);
+            uint256 vaultShare = (rd.vaultPayoutAmount * myWeight) / rd.totalNftWinnerWeight;
             uncooledBalance[msg.sender] += vaultShare;
             totalUncooled += vaultShare;
         }
@@ -485,11 +511,11 @@ contract DataMining is Ownable, ReentrancyGuard {
         emit CoolingClaim(msg.sender, uncooled, cooled, fee);
     }
 
-    /// @dev Cooling fee stays in contract — distributed proportionally when holders claim.
-    ///      Production upgrade: cumulative dividend-per-token model for O(1) gas.
-    function _distributeCoolingFee(uint256, address) internal pure {
-        // Fee remains in contract balance, effectively increasing value for remaining uncooled holders.
-        // Each holder's cooled bonus = (their uncooled / totalUncooled) * accumulated fees.
+    /// @dev Cooling fee sent to treasury for buyback & burn
+    function _distributeCoolingFee(uint256 fee, address) internal {
+        if (fee > 0) {
+            nexusToken.transfer(treasury, fee);
+        }
     }
 
     // =========================================================
