@@ -78,6 +78,12 @@ export default function Mine() {
   const [cooled, setCooled] = useState("0");
   const [nexusBalance, setNexusBalance] = useState("0");
 
+  // NFT selector state
+  const [ownedNFTs, setOwnedNFTs] = useState<Array<{ tokenId: number; tier: string; image: string }>>([]);
+  const [selectedNFTId, setSelectedNFTId] = useState<number | null>(null);
+  const [showNFTSelector, setShowNFTSelector] = useState(false);
+  const [loadingNFTs, setLoadingNFTs] = useState(false);
+
   // UI state
   const [tab, setTab] = useState<"play" | "rewards" | "stats">("play");
   const [loading, setLoading] = useState(false);
@@ -293,44 +299,75 @@ export default function Mine() {
     setLoading(false);
   };
 
-  const handleStakeNFT = async () => {
+  // Scan for all NFTs owned by user
+  const fetchOwnedNFTs = async () => {
+    if (!wallets[0]) return;
+    setLoadingNFTs(true);
+    try {
+      const provider = await getProvider();
+      const addr = wallets[0].address;
+      const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, [
+        "function balanceOf(address) view returns (uint256)",
+        "function ownerOf(uint256) view returns (address)",
+        "function totalMinted() view returns (uint256)",
+        "function tokenURI(uint256) view returns (string)",
+      ], provider);
+      const balance = Number(await nft.balanceOf(addr));
+      if (balance === 0) {
+        setOwnedNFTs([]);
+        setLoadingNFTs(false);
+        return;
+      }
+      const totalMinted = Number(await nft.totalMinted());
+      const found: Array<{ tokenId: number; tier: string; image: string }> = [];
+      for (let i = 0; i < totalMinted && found.length < balance; i++) {
+        try {
+          const owner = await nft.ownerOf(i);
+          if (owner.toLowerCase() === addr.toLowerCase()) {
+            // Fetch metadata to get tier
+            let tier = "Unknown";
+            let image = "";
+            try {
+              const uri = await nft.tokenURI(i);
+              const metaUrl = uri.replace("ipfs://", "https://ipfs.filebase.io/ipfs/");
+              const res = await fetch(metaUrl);
+              const meta = await res.json();
+              const tierAttr = meta.attributes?.find((a: { trait_type: string }) => a.trait_type === "Tier");
+              tier = tierAttr?.value || "Unknown";
+              image = meta.image?.replace("ipfs://", "https://ipfs.filebase.io/ipfs/") || "";
+            } catch { /* skip metadata errors */ }
+            found.push({ tokenId: i, tier, image });
+          }
+        } catch { continue; }
+      }
+      setOwnedNFTs(found);
+      if (found.length === 1) setSelectedNFTId(found[0].tokenId);
+    } catch (e) {
+      console.error("Failed to fetch NFTs:", e);
+    }
+    setLoadingNFTs(false);
+  };
+
+  const handleStakeNFT = async (tokenId?: number) => {
+    const stakeId = tokenId ?? selectedNFTId;
+    if (stakeId === null || stakeId === undefined) {
+      // Show selector first
+      await fetchOwnedNFTs();
+      setShowNFTSelector(true);
+      return;
+    }
     setLoading(true);
     setError("");
+    setShowNFTSelector(false);
     try {
       const provider = await getProvider();
       const signer = await provider.getSigner();
       const addr = wallets[0].address;
       const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, [
-        "function balanceOf(address) view returns (uint256)",
-        "function ownerOf(uint256) view returns (address)",
         "function setApprovalForAll(address, bool) external",
         "function isApprovedForAll(address, address) view returns (bool)",
-        "function totalMinted() view returns (uint256)",
       ], signer);
-      const balance = await nft.balanceOf(addr);
-      if (balance === 0n) {
-        setError("You don't own a Nexus Node NFT. Mint one first at /mint");
-        setLoading(false);
-        return;
-      }
-      // Find first token owned by scanning (no ERC721Enumerable)
-      const totalMinted = await nft.totalMinted();
-      let tokenId = -1;
-      for (let i = 0; i < Number(totalMinted); i++) {
-        try {
-          const owner = await nft.ownerOf(i);
-          if (owner.toLowerCase() === addr.toLowerCase()) {
-            tokenId = i;
-            break;
-          }
-        } catch { continue; }
-      }
-      if (tokenId === -1) {
-        setError("Could not find your NFT token ID");
-        setLoading(false);
-        return;
-      }
-      // Approve DataMining contract via setApprovalForAll
+      // Approve DataMining contract
       const isApproved = await nft.isApprovedForAll(addr, DATA_MINING_ADDRESS);
       if (!isApproved) {
         const approveTx = await nft.setApprovalForAll(DATA_MINING_ADDRESS, true);
@@ -338,9 +375,10 @@ export default function Mine() {
       }
       // Stake
       const contract = await getMiningContract(true);
-      const tx = await contract.stakeNFT(tokenId);
+      const tx = await contract.stakeNFT(stakeId);
       await tx.wait();
-      setSuccess(`Staked NFT #${tokenId}!`);
+      setSuccess(`Staked NFT #${stakeId}!`);
+      setSelectedNFTId(null);
       fetchGameState();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message.slice(0, 100) : "Stake failed");
@@ -620,13 +658,75 @@ export default function Mine() {
                         </button>
                       ) : (
                         <button
-                          onClick={handleStakeNFT}
-                          disabled={loading}
+                          onClick={() => handleStakeNFT()}
+                          disabled={loading || loadingNFTs}
                           className="w-full mt-3 py-2 font-mono text-[9px] tracking-widest border border-accent/50 text-accent hover:bg-accent/10 rounded transition-colors cursor-pointer disabled:opacity-30"
                         >
-                          STAKE NFT FOR BOOST
+                          {loadingNFTs ? "SCANNING NFTs..." : "STAKE NFT FOR BOOST"}
                         </button>
                       )}
+
+                      {/* NFT Selector Modal */}
+                      <AnimatePresence>
+                        {showNFTSelector && !hasNFTStaked && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3 overflow-hidden"
+                          >
+                            {ownedNFTs.length === 0 ? (
+                              <p className="font-mono text-[9px] text-error">
+                                No Nexus Node NFTs found. <a href="/mint" className="underline">Mint one</a>
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="font-mono text-[9px] text-fg-dim">SELECT NFT TO STAKE:</p>
+                                {ownedNFTs.map((nft) => (
+                                  <button
+                                    key={nft.tokenId}
+                                    onClick={() => handleStakeNFT(nft.tokenId)}
+                                    disabled={loading}
+                                    className={`w-full flex items-center gap-3 p-2 border rounded transition-colors cursor-pointer disabled:opacity-30 ${
+                                      selectedNFTId === nft.tokenId
+                                        ? "border-accent bg-accent/10"
+                                        : "border-border hover:border-accent/50"
+                                    }`}
+                                  >
+                                    {nft.image && (
+                                      <img
+                                        src={nft.image}
+                                        alt={`NFT #${nft.tokenId}`}
+                                        className="w-10 h-10 rounded object-cover"
+                                      />
+                                    )}
+                                    <div className="text-left">
+                                      <p className="font-mono text-[10px] text-fg">
+                                        Nexus Node #{nft.tokenId}
+                                      </p>
+                                      <p className={`font-mono text-[9px] ${
+                                        nft.tier === "Ultra-Rare" ? "text-success" :
+                                        nft.tier === "Rare" ? "text-accent" : "text-fg-muted"
+                                      }`}>
+                                        {nft.tier} — {
+                                          nft.tier === "Ultra-Rare" ? "2.5x" :
+                                          nft.tier === "Rare" ? "1.8x" : "1.3x"
+                                        } boost
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                                <button
+                                  onClick={() => setShowNFTSelector(false)}
+                                  className="w-full py-1 font-mono text-[8px] text-fg-dim hover:text-fg cursor-pointer"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Deploy / Settle Button */}
