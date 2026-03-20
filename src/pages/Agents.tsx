@@ -129,6 +129,11 @@ export default function Agents() {
   const [losses, setLosses] = useState(0);
   const [totalEarned, setTotalEarned] = useState("0");
 
+  // NFT selector
+  const [ownedNFTs, setOwnedNFTs] = useState<Array<{ tokenId: number; tier: string; image: string }>>([]);
+  const [showNFTSelector, setShowNFTSelector] = useState(false);
+  const [loadingNFTs, setLoadingNFTs] = useState(false);
+
   // UI
   const [tab, setTab] = useState<"deploy" | "rewards" | "staking" | "stats">("deploy");
   const [loading, setLoading] = useState(false);
@@ -330,29 +335,55 @@ export default function Agents() {
   // ---------------------------------------------------------------------------
   // NFT STAKING
   // ---------------------------------------------------------------------------
-  const handleStakeNFT = async () => {
+  const fetchOwnedNFTs = async () => {
+    if (!wallets[0]) return;
+    setLoadingNFTs(true);
+    try {
+      const provider = await getProvider();
+      const addr = wallets[0].address;
+      const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, [
+        ...NFT_ABI,
+        "function tokenURI(uint256) view returns (string)",
+      ], provider);
+      const balance = Number(await nft.balanceOf(addr));
+      if (balance === 0) { setOwnedNFTs([]); setLoadingNFTs(false); return; }
+      const totalMinted = Number(await nft.totalMinted());
+      const found: Array<{ tokenId: number; tier: string; image: string }> = [];
+      for (let i = 0; i < totalMinted && found.length < balance; i++) {
+        try {
+          const owner = await nft.ownerOf(i);
+          if (owner.toLowerCase() === addr.toLowerCase()) {
+            let tier = "Unknown", image = "";
+            try {
+              const uri = await nft.tokenURI(i);
+              const res = await fetch(uri.replace("ipfs://", "https://ipfs.filebase.io/ipfs/"));
+              const meta = await res.json();
+              tier = meta.attributes?.find((a: { trait_type: string }) => a.trait_type === "Tier")?.value || "Unknown";
+              image = meta.image?.replace("ipfs://", "https://ipfs.filebase.io/ipfs/") || "";
+            } catch { /* skip */ }
+            found.push({ tokenId: i, tier, image });
+          }
+        } catch { continue; }
+      }
+      setOwnedNFTs(found);
+    } catch (e) { console.error(e); }
+    setLoadingNFTs(false);
+  };
+
+  const handleStakeNFT = async (tokenId?: number) => {
+    if (tokenId === undefined) {
+      await fetchOwnedNFTs();
+      setShowNFTSelector(true);
+      return;
+    }
     setLoading(true);
     setError("");
+    setShowNFTSelector(false);
     try {
       const provider = await getProvider();
       const signer = await provider.getSigner();
       const addr = wallets[0].address;
       const nft = new ethers.Contract(NEXUS_AGENT_NFT_ADDRESS, NFT_ABI, signer);
-      const balance = await nft.balanceOf(addr);
-      if (balance === 0n) {
-        setError("You don't own a Nexus Node NFT. Mint one at /mint");
-        setLoading(false);
-        return;
-      }
-      const totalMinted = await nft.totalMinted();
-      let tokenId = -1;
-      for (let i = 0; i < Number(totalMinted); i++) {
-        try {
-          const owner = await nft.ownerOf(i);
-          if (owner.toLowerCase() === addr.toLowerCase()) { tokenId = i; break; }
-        } catch { continue; }
-      }
-      if (tokenId === -1) { setError("Could not find your NFT"); setLoading(false); return; }
       const isApproved = await nft.isApprovedForAll(addr, DATA_MINING_ADDRESS);
       if (!isApproved) {
         const atx = await nft.setApprovalForAll(DATA_MINING_ADDRESS, true);
@@ -705,13 +736,36 @@ export default function Agents() {
                       <p className="text-[8px] text-fg-dim mt-1">BASE MULTIPLIER</p>
                     </div>
                     {hasNFT ? (
-                      <button
-                        onClick={handleStakeNFT}
-                        disabled={loading}
-                        className="w-full py-3 text-xs tracking-[0.2em] border border-accent text-accent hover:bg-accent/10 transition-all cursor-pointer"
-                      >
-                        {loading ? "STAKING..." : "STAKE NFT"}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleStakeNFT()}
+                          disabled={loading || loadingNFTs}
+                          className="w-full py-3 text-xs tracking-[0.2em] border border-accent text-accent hover:bg-accent/10 transition-all cursor-pointer disabled:opacity-30"
+                        >
+                          {loadingNFTs ? "SCANNING NFTs..." : loading ? "STAKING..." : "SELECT NFT TO STAKE"}
+                        </button>
+                        {showNFTSelector && ownedNFTs.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {ownedNFTs.map((n) => (
+                              <button
+                                key={n.tokenId}
+                                onClick={() => handleStakeNFT(n.tokenId)}
+                                disabled={loading}
+                                className="w-full flex items-center gap-3 p-3 border border-border hover:border-accent/50 transition-colors cursor-pointer disabled:opacity-30"
+                              >
+                                {n.image && <img src={n.image} alt={`#${n.tokenId}`} className="w-10 h-10 rounded object-cover" />}
+                                <div className="text-left">
+                                  <p className="text-[10px] text-fg">Nexus Node #{n.tokenId}</p>
+                                  <p className={`text-[9px] ${n.tier === "Ultra-Rare" ? "text-green-400" : n.tier === "Rare" ? "text-accent" : "text-fg-muted"}`}>
+                                    {n.tier} — {n.tier === "Ultra-Rare" ? "2.5x" : n.tier === "Rare" ? "1.8x" : "1.3x"} boost
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                            <button onClick={() => setShowNFTSelector(false)} className="w-full py-1 text-[8px] text-fg-dim hover:text-fg cursor-pointer">CANCEL</button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <a
                         href="/mint"
