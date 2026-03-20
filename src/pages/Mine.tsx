@@ -198,23 +198,35 @@ export default function Mine() {
   }, [timeLeft, gameActive]);
 
   // Auto-settle via server (no user signature, no popups)
+  const [settleAttempted, setSettleAttempted] = useState(false);
   useEffect(() => {
-    if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling) return;
+    if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling || settleAttempted) return;
     const doAutoSettle = async () => {
       setAutoSettling(true);
+      setSettleAttempted(true);
       try {
         const apiBase = import.meta.env.VITE_API_BASE || "";
         await fetch(`${apiBase}/agent-mint/settle`, { method: "POST" });
+      } catch { /* server may be down, just wait */ }
+      // Poll for settlement confirmation
+      for (let i = 0; i < 10; i++) {
         await new Promise((r) => setTimeout(r, 3000));
         await fetchGameState();
-      } catch {
-        fetchGameState();
+        // fetchGameState will set roundSettled=true when confirmed
+        break;
       }
       setAutoSettling(false);
     };
     const timeout = setTimeout(doAutoSettle, 2000);
     return () => clearTimeout(timeout);
-  }, [timeLeft, gameActive, roundSettled, autoSettling, getMiningContract, fetchGameState]);
+  }, [timeLeft, gameActive, roundSettled, autoSettling, settleAttempted, fetchGameState]);
+
+  // Reset settleAttempted when new round starts
+  useEffect(() => {
+    if (roundId > 0 && roundId !== prevRoundId) {
+      setSettleAttempted(false);
+    }
+  }, [roundId, prevRoundId]);
 
   // Buffer period: 5 seconds between rounds + reset state for new round
   useEffect(() => {
@@ -305,20 +317,7 @@ export default function Mine() {
     setLoading(false);
   };
 
-  const handleSettle = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const contract = await getMiningContract(true);
-      const tx = await contract.settleRound();
-      await tx.wait();
-      setSuccess("Round settled!");
-      fetchGameState();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message.slice(0, 100) : "Settle failed");
-    }
-    setLoading(false);
-  };
+  // Settlement is server-side only — no handleSettle needed
 
   const handleClaimCooled = async () => {
     setLoading(true);
@@ -513,22 +512,20 @@ export default function Mine() {
           <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-1">
             {bufferActive
               ? "NEXT ROUND IN"
-              : autoSettling
-                ? "AUTO-SETTLING..."
-                : timeLeft > 0
-                  ? "ROUND ENDS IN"
-                  : roundSettled
-                    ? "ROUND SETTLED — WAITING FOR NEXT"
-                    : "SETTLING..."
+              : timeLeft > 0
+                ? "ROUND ENDS IN"
+                : roundSettled
+                  ? "ROUND COMPLETE"
+                  : "SETTLING ROUND..."
             }
           </p>
           <p className={`font-mono text-4xl md:text-5xl font-light ${
             bufferActive
               ? "text-blue-400"
-              : autoSettling
-                ? "text-orange-400 animate-pulse"
-                : timeLeft <= 10 && timeLeft > 0
-                  ? "text-error"
+              : timeLeft <= 10 && timeLeft > 0
+                ? "text-error"
+                : timeLeft === 0 && !roundSettled
+                  ? "text-orange-400 animate-pulse"
                   : "text-accent"
           }`}>
             {bufferActive
@@ -805,14 +802,10 @@ export default function Mine() {
                       </AnimatePresence>
                     </div>
 
-                    {/* Deploy / Status Button */}
+                    {/* Deploy Button + Round Status */}
                     {bufferActive ? (
                       <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-blue-400/30 text-blue-400 text-center bg-blue-400/5">
-                        BUFFER — NEXT ROUND IN {bufferTime}s
-                      </div>
-                    ) : autoSettling ? (
-                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center bg-orange-400/5 animate-pulse">
-                        AUTO-SETTLING ROUND...
+                        NEXT ROUND IN {bufferTime}s
                       </div>
                     ) : timeLeft > 0 && !roundSettled ? (
                       <motion.button
@@ -830,11 +823,11 @@ export default function Mine() {
                       </motion.button>
                     ) : roundSettled ? (
                       <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-success/30 text-success text-center bg-success/5">
-                        ROUND SETTLED — {winningBlock !== null ? `BLOCK ${winningBlock + 1} WON!` : "PROCESSING..."}
+                        BLOCK {winningBlock !== null ? winningBlock + 1 : "?"} WON! — Check rewards tab to claim
                       </div>
                     ) : (
-                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center animate-pulse">
-                        SETTLING...
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center bg-orange-400/5 animate-pulse">
+                        SETTLING ROUND...
                       </div>
                     )}
 
