@@ -84,6 +84,12 @@ export default function Mine() {
   const [showNFTSelector, setShowNFTSelector] = useState(false);
   const [loadingNFTs, setLoadingNFTs] = useState(false);
 
+  // Buffer between rounds
+  const [bufferActive, setBufferActive] = useState(false);
+  const [bufferTime, setBufferTime] = useState(0);
+  const [autoSettling, setAutoSettling] = useState(false);
+  const [prevRoundId, setPrevRoundId] = useState(0);
+
   // UI state
   const [tab, setTab] = useState<"play" | "rewards" | "stats">("play");
   const [loading, setLoading] = useState(false);
@@ -191,11 +197,71 @@ export default function Mine() {
     return () => clearInterval(timer);
   }, [timeLeft, gameActive]);
 
+  // Auto-settle when round timer hits 0, then auto-claim
+  useEffect(() => {
+    if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling) return;
+    const doAutoSettle = async () => {
+      setAutoSettling(true);
+      try {
+        const contract = await getMiningContract(true);
+        const tx = await contract.settleRound();
+        await tx.wait();
+        setSuccess("Round auto-settled!");
+        await fetchGameState();
+
+        // Auto-claim winnings for this round
+        try {
+          const claimTx = await contract.claimRound(roundId);
+          await claimTx.wait();
+          setSuccess("Winnings claimed!");
+        } catch {
+          // May not have played this round, or already claimed
+        }
+        fetchGameState();
+      } catch {
+        // Someone else may have settled, just refresh
+        fetchGameState();
+      }
+      setAutoSettling(false);
+    };
+    // Small delay to let chain confirm time
+    const timeout = setTimeout(doAutoSettle, 2000);
+    return () => clearTimeout(timeout);
+  }, [timeLeft, gameActive, roundSettled, autoSettling, roundId, getMiningContract, fetchGameState]);
+
+  // Buffer period: 5 seconds between rounds + reset state for new round
+  useEffect(() => {
+    if (roundId > 0 && roundId !== prevRoundId && prevRoundId > 0) {
+      // New round detected — activate buffer
+      setBufferActive(true);
+      setBufferTime(5);
+      setDeployed(false);
+      setSelectedBlocks(new Set());
+      setWinningBlock(null);
+      setVaultTriggered(false);
+      setSuccess("");
+      setError("");
+    }
+    setPrevRoundId(roundId);
+  }, [roundId, prevRoundId]);
+
+  // Buffer countdown
+  useEffect(() => {
+    if (!bufferActive || bufferTime <= 0) {
+      if (bufferActive) setBufferActive(false);
+      return;
+    }
+    const timer = setInterval(() => setBufferTime((t) => t - 1), 1000);
+    return () => clearInterval(timer);
+  }, [bufferActive, bufferTime]);
+
   // ---------------------------------------------------------------------------
   // ACTIONS
   // ---------------------------------------------------------------------------
+  const canInteract = timeLeft > 0 && !deployed && !roundSettled && !bufferActive && !autoSettling;
+
   const toggleBlock = (idx: number) => {
-    if (deployed || roundSettled) return;
+    if (!canInteract) return;
     setSelectedBlocks((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
@@ -205,12 +271,12 @@ export default function Mine() {
   };
 
   const selectAllBlocks = () => {
-    if (deployed || roundSettled) return;
+    if (!canInteract) return;
     setSelectedBlocks(new Set(Array.from({ length: 25 }, (_, i) => i)));
   };
 
   const clearBlocks = () => {
-    if (deployed) return;
+    if (!canInteract) return;
     setSelectedBlocks(new Set());
   };
 
@@ -260,8 +326,6 @@ export default function Mine() {
       const tx = await contract.settleRound();
       await tx.wait();
       setSuccess("Round settled!");
-      setDeployed(false);
-      setSelectedBlocks(new Set());
       fetchGameState();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message.slice(0, 100) : "Settle failed");
@@ -460,12 +524,30 @@ export default function Mine() {
           className="text-center mb-6"
         >
           <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-1">
-            {timeLeft > 0 ? "ROUND ENDS IN" : roundSettled ? "ROUND SETTLED" : "READY TO SETTLE"}
+            {bufferActive
+              ? "NEXT ROUND IN"
+              : autoSettling
+                ? "AUTO-SETTLING..."
+                : timeLeft > 0
+                  ? "ROUND ENDS IN"
+                  : roundSettled
+                    ? "ROUND SETTLED — WAITING FOR NEXT"
+                    : "SETTLING..."
+            }
           </p>
           <p className={`font-mono text-4xl md:text-5xl font-light ${
-            timeLeft <= 10 && timeLeft > 0 ? "text-error" : "text-accent"
+            bufferActive
+              ? "text-blue-400"
+              : autoSettling
+                ? "text-orange-400 animate-pulse"
+                : timeLeft <= 10 && timeLeft > 0
+                  ? "text-error"
+                  : "text-accent"
           }`}>
-            {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+            {bufferActive
+              ? `00:0${bufferTime}`
+              : `${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`
+            }
           </p>
         </motion.div>
 
@@ -551,7 +633,12 @@ export default function Mine() {
                               </>
                             )}
                             {isWinner && (
-                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse" />
+                              <>
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full animate-pulse" />
+                                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-accent text-bg text-[7px] font-bold px-1.5 py-0.5 rounded tracking-wider">
+                                  WINNER
+                                </span>
+                              </>
                             )}
                           </motion.button>
                         );
@@ -729,8 +816,16 @@ export default function Mine() {
                       </AnimatePresence>
                     </div>
 
-                    {/* Deploy / Settle Button */}
-                    {timeLeft > 0 && !roundSettled ? (
+                    {/* Deploy / Status Button */}
+                    {bufferActive ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-blue-400/30 text-blue-400 text-center bg-blue-400/5">
+                        BUFFER — NEXT ROUND IN {bufferTime}s
+                      </div>
+                    ) : autoSettling ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center bg-orange-400/5 animate-pulse">
+                        AUTO-SETTLING ROUND...
+                      </div>
+                    ) : timeLeft > 0 && !roundSettled ? (
                       <motion.button
                         onClick={handleDeploy}
                         disabled={loading || deployed || selectedBlocks.size === 0 || !amount}
@@ -744,16 +839,14 @@ export default function Mine() {
                       >
                         {loading ? "DEPLOYING..." : deployed ? "DEPLOYED — WAITING..." : `DEPLOY ${currency}`}
                       </motion.button>
+                    ) : roundSettled ? (
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-success/30 text-success text-center bg-success/5">
+                        ROUND SETTLED — {winningBlock !== null ? `BLOCK ${winningBlock + 1} WON!` : "PROCESSING..."}
+                      </div>
                     ) : (
-                      <motion.button
-                        onClick={handleSettle}
-                        disabled={loading || roundSettled}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="w-full py-3 font-mono text-[11px] tracking-widest border border-accent text-accent hover:bg-accent/10 rounded transition-all cursor-pointer disabled:opacity-30"
-                      >
-                        {loading ? "SETTLING..." : roundSettled ? "ROUND SETTLED" : "SETTLE ROUND"}
-                      </motion.button>
+                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-orange-400/30 text-orange-400 text-center animate-pulse">
+                        SETTLING...
+                      </div>
                     )}
 
                     {/* Claim Round Button */}
