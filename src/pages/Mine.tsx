@@ -197,31 +197,16 @@ export default function Mine() {
     return () => clearInterval(timer);
   }, [timeLeft, gameActive]);
 
-  // Auto-settle via server (no user signature needed)
+  // Auto-settle via server (no user signature, no popups)
   useEffect(() => {
     if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling) return;
     const doAutoSettle = async () => {
       setAutoSettling(true);
       try {
-        // Server-side settlement — deployer wallet pays gas, user signs nothing
         const apiBase = import.meta.env.VITE_API_BASE || "";
         await fetch(`${apiBase}/agent-mint/settle`, { method: "POST" });
-        // Wait a moment for chain to confirm, then refresh
         await new Promise((r) => setTimeout(r, 3000));
         await fetchGameState();
-
-        // Auto-claim winnings (this IS a user tx since it sends ETH/NEXUS to them)
-        if (authenticated && wallets[0]) {
-          try {
-            const contract = await getMiningContract(true);
-            const claimTx = await contract.claimRound(roundId);
-            await claimTx.wait();
-            setSuccess("Winnings claimed!");
-          } catch {
-            // Not deployed this round or already claimed
-          }
-          fetchGameState();
-        }
       } catch {
         fetchGameState();
       }
@@ -229,7 +214,7 @@ export default function Mine() {
     };
     const timeout = setTimeout(doAutoSettle, 2000);
     return () => clearTimeout(timeout);
-  }, [timeLeft, gameActive, roundSettled, autoSettling, roundId, authenticated, wallets, getMiningContract, fetchGameState]);
+  }, [timeLeft, gameActive, roundSettled, autoSettling, getMiningContract, fetchGameState]);
 
   // Buffer period: 5 seconds between rounds + reset state for new round
   useEffect(() => {
