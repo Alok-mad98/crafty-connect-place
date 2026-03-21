@@ -54,7 +54,8 @@ export default function Mine() {
   const [roundId, setRoundId] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [gameActive, setGameActive] = useState(false);
-  const roundEndTimeRef = useRef<number>(0); // epoch seconds when round ends
+  const roundEndTimeRef = useRef<number>(0); // local epoch seconds when round ends
+  const lastSyncedRoundRef = useRef<number>(0); // only sync timer once per round
   const [vaultAmount, setVaultAmount] = useState("0");
   const [totalRounds, setTotalRounds] = useState(0);
   const [totalFees, setTotalFees] = useState("0");
@@ -136,18 +137,25 @@ export default function Mine() {
     if (!DATA_MINING_ADDRESS || !wallets[0]) return;
     try {
       const contract = await getMiningContract();
-      const [rId, startTime, timeRem, active, vault, ] = await contract.getGameState();
-      setRoundId(Number(rId));
+      const [rId, , timeRem, active, vault, ] = await contract.getGameState();
+      const currentRoundId = Number(rId);
+      const chainTimeLeft = Number(timeRem);
+      setRoundId(currentRoundId);
       setGameActive(active);
 
-      // Use chain startTime to compute a stable end time (no jitter from RPC latency)
-      // roundEndTime = startTime + 60 (ROUND_DURATION) — this is constant for a given round
-      const chainStartTime = Number(startTime);
-      const roundEndTime = chainStartTime + 60;
-      roundEndTimeRef.current = roundEndTime;
-      // Derive timeLeft from local clock vs chain end time
-      const now = Math.floor(Date.now() / 1000);
-      setTimeLeft(Math.max(0, roundEndTime - now));
+      // Sync timer ONCE per round using local clock + chain timeRemaining
+      // This avoids chain vs local clock offset (which caused 8s mismatch)
+      // and avoids jitter (only set once, not every poll)
+      if (currentRoundId !== lastSyncedRoundRef.current || roundEndTimeRef.current === 0) {
+        const localNow = Math.floor(Date.now() / 1000);
+        roundEndTimeRef.current = localNow + chainTimeLeft;
+        lastSyncedRoundRef.current = currentRoundId;
+        setTimeLeft(chainTimeLeft);
+      } else if (chainTimeLeft === 0) {
+        // Round ended — force update
+        roundEndTimeRef.current = Math.floor(Date.now() / 1000);
+        setTimeLeft(0);
+      }
       setVaultAmount(ethers.formatEther(vault));
 
       const totalR = await contract.totalRoundsPlayed();
