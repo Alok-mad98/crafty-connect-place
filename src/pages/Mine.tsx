@@ -87,7 +87,7 @@ export default function Mine() {
   // Buffer between rounds
   const [bufferActive, setBufferActive] = useState(false);
   const [bufferTime, setBufferTime] = useState(0);
-  const [autoSettling, setAutoSettling] = useState(false);
+  const autoSettling = false; // Settlement handled by VPS agent
   const [prevRoundId, setPrevRoundId] = useState(0);
 
   // UI state
@@ -203,36 +203,8 @@ export default function Mine() {
     return () => clearInterval(timer);
   }, [timeLeft, gameActive]);
 
-  // Auto-settle via server (no user signature, no popups)
-  const [settleAttempted, setSettleAttempted] = useState(false);
-  useEffect(() => {
-    if (timeLeft !== 0 || !gameActive || roundSettled || autoSettling || settleAttempted) return;
-    const doAutoSettle = async () => {
-      setAutoSettling(true);
-      setSettleAttempted(true);
-      try {
-        const apiBase = import.meta.env.VITE_API_BASE || "";
-        await fetch(`${apiBase}/agent-mint/settle`, { method: "POST" });
-      } catch { /* server may be down, just wait */ }
-      // Poll for settlement confirmation
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        await fetchGameState();
-        // fetchGameState will set roundSettled=true when confirmed
-        break;
-      }
-      setAutoSettling(false);
-    };
-    const timeout = setTimeout(doAutoSettle, 2000);
-    return () => clearTimeout(timeout);
-  }, [timeLeft, gameActive, roundSettled, autoSettling, settleAttempted, fetchGameState]);
-
-  // Reset settleAttempted when new round starts
-  useEffect(() => {
-    if (roundId > 0 && roundId !== prevRoundId) {
-      setSettleAttempted(false);
-    }
-  }, [roundId, prevRoundId]);
+  // Settlement is handled by VPS agent (agent.js) — no frontend settle calls needed.
+  // Frontend just polls game state every 5s and detects when round is settled.
 
   // Buffer period: 5 seconds between rounds + reset state for new round
   useEffect(() => {
