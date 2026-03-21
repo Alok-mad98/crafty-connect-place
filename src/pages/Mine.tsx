@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
@@ -54,6 +54,7 @@ export default function Mine() {
   const [roundId, setRoundId] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [gameActive, setGameActive] = useState(false);
+  const roundEndTimeRef = useRef<number>(0); // epoch seconds when round ends
   const [vaultAmount, setVaultAmount] = useState("0");
   const [totalRounds, setTotalRounds] = useState(0);
   const [totalFees, setTotalFees] = useState("0");
@@ -139,8 +140,16 @@ export default function Mine() {
       const contract = await getMiningContract();
       const [rId, , timeRem, active, vault, ] = await contract.getGameState();
       setRoundId(Number(rId));
-      setTimeLeft(Number(timeRem));
       setGameActive(active);
+
+      // Compute round end time so local countdown is smooth (no jumps)
+      const chainTimeLeft = Number(timeRem);
+      const newEndTime = Math.floor(Date.now() / 1000) + chainTimeLeft;
+      // Only update endTime if it differs by more than 3s (avoids micro-jitter)
+      if (Math.abs(newEndTime - roundEndTimeRef.current) > 3 || chainTimeLeft === 0) {
+        roundEndTimeRef.current = newEndTime;
+        setTimeLeft(chainTimeLeft);
+      }
       setVaultAmount(ethers.formatEther(vault));
 
       const totalR = await contract.totalRoundsPlayed();
@@ -196,10 +205,14 @@ export default function Mine() {
     return () => clearInterval(interval);
   }, [fetchGameState]);
 
-  // Countdown timer
+  // Countdown timer — derives from roundEndTimeRef for smooth ticking
   useEffect(() => {
-    if (timeLeft <= 0 || !gameActive) return;
-    const timer = setInterval(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
+    if (!gameActive) return;
+    const timer = setInterval(() => {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = Math.max(0, roundEndTimeRef.current - now);
+      setTimeLeft(remaining);
+    }, 1000);
     return () => clearInterval(timer);
   }, [timeLeft, gameActive]);
 
