@@ -85,9 +85,7 @@ export default function Mine() {
   const [showNFTSelector, setShowNFTSelector] = useState(false);
   const [loadingNFTs, setLoadingNFTs] = useState(false);
 
-  // Buffer between rounds
-  const [bufferActive, setBufferActive] = useState(false);
-  const [bufferTime, setBufferTime] = useState(0);
+  // Round tracking
   const autoSettling = false; // Settlement handled by VPS agent
   const [prevRoundId, setPrevRoundId] = useState(0);
 
@@ -199,11 +197,13 @@ export default function Mine() {
     }
   }, [wallets, getMiningContract, getNexusContract]);
 
+  // Poll faster when waiting for settlement (1s), normal pace otherwise (3s)
   useEffect(() => {
     fetchGameState();
-    const interval = setInterval(fetchGameState, 5000);
+    const pollInterval = (timeLeft === 0 && gameActive && !roundSettled) ? 1000 : 3000;
+    const interval = setInterval(fetchGameState, pollInterval);
     return () => clearInterval(interval);
-  }, [fetchGameState]);
+  }, [fetchGameState, timeLeft === 0 && gameActive && !roundSettled]);
 
   // Countdown timer — derives from roundEndTimeRef for smooth ticking
   useEffect(() => {
@@ -219,12 +219,9 @@ export default function Mine() {
   // Settlement is handled by VPS agent (agent.js) — no frontend settle calls needed.
   // Frontend just polls game state every 5s and detects when round is settled.
 
-  // Buffer period: 5 seconds between rounds + reset state for new round
+  // New round detected — reset state instantly (no buffer delay)
   useEffect(() => {
     if (roundId > 0 && roundId !== prevRoundId && prevRoundId > 0) {
-      // New round detected — activate buffer
-      setBufferActive(true);
-      setBufferTime(5);
       setDeployed(false);
       setSelectedBlocks(new Set());
       setWinningBlock(null);
@@ -235,20 +232,10 @@ export default function Mine() {
     setPrevRoundId(roundId);
   }, [roundId, prevRoundId]);
 
-  // Buffer countdown
-  useEffect(() => {
-    if (!bufferActive || bufferTime <= 0) {
-      if (bufferActive) setBufferActive(false);
-      return;
-    }
-    const timer = setInterval(() => setBufferTime((t) => t - 1), 1000);
-    return () => clearInterval(timer);
-  }, [bufferActive, bufferTime]);
-
   // ---------------------------------------------------------------------------
   // ACTIONS
   // ---------------------------------------------------------------------------
-  const canInteract = timeLeft > 0 && !deployed && !roundSettled && !bufferActive && !autoSettling;
+  const canInteract = timeLeft > 0 && !deployed && !roundSettled && !autoSettling;
 
   const toggleBlock = (idx: number) => {
     if (!canInteract) return;
@@ -564,28 +551,21 @@ export default function Mine() {
           className="text-center mb-6"
         >
           <p className="font-mono text-[10px] tracking-widest text-fg-dim mb-1">
-            {bufferActive
-              ? "NEXT ROUND IN"
-              : timeLeft > 0
-                ? "ROUND ENDS IN"
-                : roundSettled
-                  ? "ROUND COMPLETE"
-                  : "SETTLING ROUND..."
+            {timeLeft > 0
+              ? "ROUND ENDS IN"
+              : roundSettled
+                ? "ROUND COMPLETE"
+                : "SETTLING ROUND..."
             }
           </p>
           <p className={`font-mono text-4xl md:text-5xl font-light ${
-            bufferActive
-              ? "text-blue-400"
-              : timeLeft <= 10 && timeLeft > 0
-                ? "text-error"
-                : timeLeft === 0 && !roundSettled
-                  ? "text-orange-400 animate-pulse"
-                  : "text-accent"
+            timeLeft <= 10 && timeLeft > 0
+              ? "text-error"
+              : timeLeft === 0 && !roundSettled
+                ? "text-orange-400 animate-pulse"
+                : "text-accent"
           }`}>
-            {bufferActive
-              ? `00:0${bufferTime}`
-              : `${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`
-            }
+            {`${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`}
           </p>
         </motion.div>
 
@@ -857,11 +837,7 @@ export default function Mine() {
                     </div>
 
                     {/* Deploy Button + Round Status */}
-                    {bufferActive ? (
-                      <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-blue-400/30 text-blue-400 text-center bg-blue-400/5">
-                        NEXT ROUND IN {bufferTime}s
-                      </div>
-                    ) : !gameActive ? (
+                    {!gameActive ? (
                       <div className="w-full py-3 font-mono text-[11px] tracking-widest rounded border border-fg-dim/30 text-fg-dim text-center bg-bg-card">
                         GAME NOT ACTIVE — WAITING FOR START
                       </div>
