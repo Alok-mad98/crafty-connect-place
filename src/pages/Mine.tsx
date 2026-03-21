@@ -214,7 +214,7 @@ export default function Mine() {
       setTimeLeft(remaining);
     }, 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, gameActive]);
+  }, [gameActive]);
 
   // Settlement is handled by VPS agent (agent.js) — no frontend settle calls needed.
   // Frontend just polls game state every 5s and detects when round is settled.
