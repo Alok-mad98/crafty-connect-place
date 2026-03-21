@@ -138,18 +138,18 @@ export default function Mine() {
     if (!DATA_MINING_ADDRESS || !wallets[0]) return;
     try {
       const contract = await getMiningContract();
-      const [rId, , timeRem, active, vault, ] = await contract.getGameState();
+      const [rId, startTime, timeRem, active, vault, ] = await contract.getGameState();
       setRoundId(Number(rId));
       setGameActive(active);
 
-      // Compute round end time so local countdown is smooth (no jumps)
-      const chainTimeLeft = Number(timeRem);
-      const newEndTime = Math.floor(Date.now() / 1000) + chainTimeLeft;
-      // Only update endTime if it differs by more than 3s (avoids micro-jitter)
-      if (Math.abs(newEndTime - roundEndTimeRef.current) > 3 || chainTimeLeft === 0) {
-        roundEndTimeRef.current = newEndTime;
-        setTimeLeft(chainTimeLeft);
-      }
+      // Use chain startTime to compute a stable end time (no jitter from RPC latency)
+      // roundEndTime = startTime + 60 (ROUND_DURATION) — this is constant for a given round
+      const chainStartTime = Number(startTime);
+      const roundEndTime = chainStartTime + 60;
+      roundEndTimeRef.current = roundEndTime;
+      // Derive timeLeft from local clock vs chain end time
+      const now = Math.floor(Date.now() / 1000);
+      setTimeLeft(Math.max(0, roundEndTime - now));
       setVaultAmount(ethers.formatEther(vault));
 
       const totalR = await contract.totalRoundsPlayed();
