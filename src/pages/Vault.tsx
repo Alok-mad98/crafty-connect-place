@@ -71,8 +71,21 @@ export default function Vault() {
     }
   }, [authenticated, wallets, fetchPurchases]);
 
+  const { login } = usePrivy();
+
   const handleBuy = async (skill: SkillData) => {
-    if (!authenticated || !wallets[0] || skill.onchainId == null) return;
+    if (!authenticated) {
+      login();
+      return;
+    }
+    if (!wallets[0]) {
+      alert("No wallet found. Please connect a wallet first.");
+      return;
+    }
+    if (skill.onchainId == null) {
+      alert("This skill is not yet registered onchain. Please try again later.");
+      return;
+    }
     setPurchasing(skill.id);
     try {
       const wallet = wallets[0];
