@@ -144,7 +144,7 @@ export default function Vault() {
         body: JSON.stringify({
           skillId: skill.id,
           buyerWallet: wallet.address?.toLowerCase(),
-          txHash: receipt?.hash || buyHash,
+          txHash,
         }),
       });
 
