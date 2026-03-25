@@ -82,10 +82,6 @@ export default function Vault() {
       alert("No wallet found. Please connect a wallet first.");
       return;
     }
-    if (skill.onchainId == null) {
-      alert("This skill is not yet registered onchain. Please try again later.");
-      return;
-    }
     setPurchasing(skill.id);
     try {
       const wallet = wallets[0];
@@ -94,35 +90,49 @@ export default function Vault() {
       const provider = new ethers.BrowserProvider(ethereumProvider);
       const signer = await provider.getSigner();
       const fromAddr = await signer.getAddress();
-      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
       const priceWei = ethers.parseUnits(skill.price, 6);
-      const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
-      if (allowance < priceWei) {
-        // Encode approve manually to avoid BigInt serialization with Privy
-        const approveIface = new ethers.Interface(ERC20_ABI);
-        const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, priceWei]);
-        const approveHash = await ethereumProvider.request({
+
+      let txHash: string;
+
+      if (skill.onchainId != null) {
+        // Onchain skill — use contract buySkill
+        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+        const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
+        if (allowance < priceWei) {
+          const approveIface = new ethers.Interface(ERC20_ABI);
+          const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, priceWei]);
+          const approveHash = await ethereumProvider.request({
+            method: "eth_sendTransaction",
+            params: [{ from: fromAddr, to: USDC_ADDRESS, data: approveData }],
+          });
+          await provider.waitForTransaction(approveHash as string);
+        }
+        const buyIface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
+        const buyData = buyIface.encodeFunctionData("buySkill", [skill.onchainId]);
+        txHash = await ethereumProvider.request({
           method: "eth_sendTransaction",
-          params: [{
-            from: fromAddr,
-            to: USDC_ADDRESS,
-            data: approveData,
-          }],
-        });
-        await provider.waitForTransaction(approveHash as string);
+          params: [{ from: fromAddr, to: CONTRACT_ADDRESS, data: buyData }],
+        }) as string;
+      } else {
+        // No onchain ID — direct USDC transfer to creator
+        const creatorAddr = skill.creator?.walletAddress;
+        if (!creatorAddr) {
+          alert("Skill creator address not found.");
+          setPurchasing(null);
+          return;
+        }
+        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+        const transferIface = new ethers.Interface([
+          "function transfer(address to, uint256 amount) external returns (bool)",
+        ]);
+        const transferData = transferIface.encodeFunctionData("transfer", [creatorAddr, priceWei]);
+        txHash = await ethereumProvider.request({
+          method: "eth_sendTransaction",
+          params: [{ from: fromAddr, to: USDC_ADDRESS, data: transferData }],
+        }) as string;
       }
-      // Encode buySkill manually to avoid BigInt serialization with Privy
-      const buyIface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
-      const buyData = buyIface.encodeFunctionData("buySkill", [skill.onchainId]);
-      const buyHash = await ethereumProvider.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: fromAddr,
-          to: CONTRACT_ADDRESS,
-          data: buyData,
-        }],
-      });
-      const receipt = await provider.waitForTransaction(buyHash as string);
+
+      await provider.waitForTransaction(txHash);
 
       // Record purchase in DB
       await fetch(`${SUPABASE_URL}/functions/v1/skills-api/purchase`, {
@@ -134,7 +144,7 @@ export default function Vault() {
         body: JSON.stringify({
           skillId: skill.id,
           buyerWallet: wallet.address?.toLowerCase(),
-          txHash: receipt?.hash || buyHash,
+          txHash,
         }),
       });
 
