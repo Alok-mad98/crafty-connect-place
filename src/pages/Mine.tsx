@@ -267,6 +267,25 @@ export default function Mine() {
     setSelectedBlocks(new Set());
   };
 
+  // Helper to update PnL in database
+  const updatePnl = async (wallet: string, wagered: number, won: number, rId: number) => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      await fetch(`https://${projectId}.supabase.co/functions/v1/update-pnl`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`,
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({ entries: [{ wallet, wagered, won, roundId: rId }] }),
+      });
+    } catch (e) {
+      console.error("PnL update failed:", e);
+    }
+  };
+
   const handleDeploy = async () => {
     if (selectedBlocks.size === 0 || !amount) return;
     setLoading(true);
