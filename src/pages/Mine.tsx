@@ -296,6 +296,12 @@ export default function Mine() {
         await tx.wait();
       }
 
+      // Track wagered amount for PnL
+      const totalWagered = parseFloat(amount) * blocks.length;
+      if (wallets[0]?.address) {
+        updatePnl(wallets[0].address, totalWagered, 0, roundId).catch(console.error);
+      }
+
       setDeployed(true);
       setSuccess(`Deployed ${amount} ${currency} on ${blocks.length} blocks!`);
       fetchGameState();
