@@ -1,23 +1,18 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
-
-export default defineConfig(() => ({
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
-    },
-  },
+export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
-  define: {
-    global: "window",
-  },
-}));
+  server: {
+    port: 3000,
+    strictPort: true,
+    host: true,
+    allowedHosts: true,
+  }
+});

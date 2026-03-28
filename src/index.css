@@ -1,143 +1,173 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Lora:ital,wght@0,400..700;1,400..700&family=IBM+Plex+Mono:ital,wght@0,100..700;1,100..700&display=swap');
 
-@theme {
-  --color-bg: hsl(0 0% 3%);
-  --color-bg-elevated: hsl(0 0% 6%);
-  --color-bg-card: hsl(0 0% 5%);
-  --color-fg: hsl(0 0% 96%);
-  --color-fg-muted: hsl(0 0% 100% / 0.55);
-  --color-fg-dim: hsl(0 0% 100% / 0.22);
-  --color-fg-ghost: hsl(0 0% 100% / 0.06);
-  --color-border: hsl(0 0% 100% / 0.07);
-  --color-border-hover: hsl(0 0% 100% / 0.14);
-  --color-accent: hsl(35 40% 62%);
-  --color-accent-muted: hsl(35 40% 62% / 0.15);
-  --color-accent-glow: hsl(35 50% 70%);
-  --color-success: hsl(150 50% 50%);
-  --color-error: hsl(0 70% 55%);
+/* ─────────────────────────────────────────────────────────────────────────────
+   Blink UI Theme CSS
+   REQUIRED for @blinkdotnew/ui components to render correctly.
+   BlinkUIProvider adds .theme-{name} + .dark/.light to <html>,
+   activating the matching CSS variable set below.
+   ───────────────────────────────────────────────────────────────────────────── */
+@import '@blinkdotnew/ui/styles';
 
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-serif: "Cormorant Garamond", "Georgia", serif;
-  --font-mono: "Roboto Mono", "Geist Mono", monospace;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    letter-spacing: var(--tracking-normal);
+  }
 }
 
+/* ── App palette (unlayered, after utilities) ─────────────────────────────────
+   Overrides @blinkdotnew/ui theme colors. @layer base loses specificity to UI themes.
+   Dark mode uses :root.dark + .theme-*.dark to match BlinkUIProvider.
+   ⚠️ AGENT MUST REPLACE placeholder values with a custom palette.
+   ──────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: hsl(0 0% 3%);
-  --foreground: hsl(0 0% 96%);
+  /* Crafty Connect Place — Warm Craft Palette (terracotta + amber) */
+
+  /*
+   * EXAMPLE PALETTES (use as inspiration, replace with your own):
+   *
+   * Modern SaaS (Business/Enterprise):
+   * --primary: 220 10% 20%;        (Charcoal #2D3748)
+   * --accent: 220 10% 30%;         (Lighter charcoal #4A5568)
+   *
+   * Bold Tech (Startups/Developer Tools):
+   * --primary: 348 83% 47%;        (Crimson #DA1E37)
+   * --accent: 348 83% 57%;         (Lighter crimson #F0213E)
+   *
+   * Quantum Rose (Creative/Design):
+   * --primary: 330 81% 50%;        (Pink #E6067A)
+   * --accent: 330 81% 70%;         (Lighter pink #F472B6)
+   *
+   * Rich Forest (Calm/Professional):
+   * --primary: 151 55% 25%;        (Pine #1C6340)
+   * --accent: 151 55% 35%;         (Lighter pine #288C5A)
+   *
+   * Sunset Warmth (Friendly/Welcoming):
+   * --primary: 24 95% 53%;         (Orange #F97316)
+   * --accent: 24 95% 63%;          (Lighter orange #FB923C)
+   */
+
+  /* Colors */
+  --background: 30 30% 98%;
+  --foreground: 22 30% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 22 30% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 22 30% 18%;
+  --primary: 18 72% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 30 60% 94%;
+  --secondary-foreground: 22 40% 25%;
+  --muted: 30 20% 94%;
+  --muted-foreground: 22 15% 50%;
+  --accent: 35 90% 52%;
+  --accent-foreground: 22 30% 12%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 30 20% 88%;
+  --input: 30 20% 88%;
+  --ring: 18 72% 42%;
+
+  /* Charts */
+  --chart-1: 18 72% 42%;
+  --chart-2: 35 90% 52%;
+  --chart-3: 150 50% 40%;
+  --chart-4: 200 60% 45%;
+  --chart-5: 280 50% 50%;
+
+  /* Sidebar */
+  --sidebar: 30 30% 96%;
+  --sidebar-foreground: 22 30% 18%;
+  --sidebar-primary: 18 72% 42%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 35 90% 52%;
+  --sidebar-accent-foreground: 22 30% 12%;
+  --sidebar-border: 30 20% 88%;
+  --sidebar-ring: 18 72% 42%;
+
+  /* Fonts */
+  --font-sans: DM Sans, sans-serif;
+  --font-serif: Lora, serif;
+  --font-mono: IBM Plex Mono, monospace;
+
+  /* Shadows */
+  --shadow-2xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10);
+  --shadow: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 1px 2px -2px hsl(0 0% 0% / 0.10);
+  --shadow-md: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 2px 4px -2px hsl(0 0% 0% / 0.10);
+  --shadow-lg: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 4px 6px -2px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.10), 0px 8px 10px -2px hsl(0 0% 0% / 0.10);
+  --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+
+  /* Misc */
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+  --radius: 0.5rem;
 }
 
-html {
-  scroll-behavior: smooth;
+:root.dark,
+.theme-linear.dark,
+.theme-glass.dark,
+.theme-midnight.dark,
+.theme-minimal.dark {
+  --background: 22 20% 10%;
+  --foreground: 30 20% 88%;
+  --card: 22 18% 14%;
+  --card-foreground: 30 20% 88%;
+  --popover: 22 18% 14%;
+  --popover-foreground: 30 20% 88%;
+  --primary: 18 72% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 22 18% 18%;
+  --secondary-foreground: 30 15% 70%;
+  --muted: 22 18% 14%;
+  --muted-foreground: 22 10% 52%;
+  --accent: 35 80% 50%;
+  --accent-foreground: 22 30% 12%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 22 15% 22%;
+  --input: 22 15% 22%;
+  --ring: 18 72% 58%;
+
+  --chart-1: 18 72% 58%;
+  --chart-2: 35 80% 50%;
+  --chart-3: 150 50% 50%;
+  --chart-4: 200 60% 55%;
+  --chart-5: 280 50% 60%;
+
+  --sidebar: 22 18% 12%;
+  --sidebar-foreground: 30 20% 88%;
+  --sidebar-primary: 18 72% 58%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 22 18% 18%;
+  --sidebar-accent-foreground: 30 15% 70%;
+  --sidebar-border: 22 15% 22%;
+  --sidebar-ring: 18 72% 58%;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
 }
 
-/* Glass utility */
-.glass {
-  background: hsl(0 0% 100% / 0.02);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid hsl(0 0% 100% / 0.05);
-}
-.glass-hover:hover {
-  background: hsl(0 0% 100% / 0.04);
-  border-color: hsl(0 0% 100% / 0.09);
-}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(0 0% 100% / 0.06); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(0 0% 100% / 0.12); }
-
-/* Selection */
-::selection {
-  background: hsl(35 40% 62% / 0.2);
-  color: hsl(0 0% 100%);
-}
-
-/* Focus */
-*:focus-visible {
-  outline: 1px solid hsl(0 0% 100% / 0.15);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-/* Number input spinners */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type="number"] { -moz-appearance: textfield; }
-
-/* Line clamp */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Particle rain */
-@keyframes rain {
-  0% { transform: translateY(-100vh); opacity: 0; }
-  10% { opacity: 0.3; }
-  90% { opacity: 0.3; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(0 0% 100% / 0.02) 0%,
-    hsl(0 0% 100% / 0.05) 50%,
-    hsl(0 0% 100% / 0.02) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-/* Smooth scroll sections */
-section {
-  will-change: transform;
-}
-
-/* Serif display heading utility */
-.heading-display {
-  font-family: "Cormorant Garamond", Georgia, serif;
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  line-height: 0.92;
-}
-
-/* Accent underline */
-.accent-line {
-  position: relative;
-}
-.accent-line::after {
-  content: "";
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 40px;
-  height: 1px;
-  background: hsl(35 40% 62% / 0.4);
-}
-
-/* Horizontal rule with accent */
-.hr-accent {
-  border: none;
-  height: 1px;
-  background: linear-gradient(90deg, hsl(35 40% 62% / 0.3) 0%, transparent 60%);
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

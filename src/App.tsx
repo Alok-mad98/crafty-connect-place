@@ -1,40 +1,77 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import CinematicBackground from "@/components/CinematicBackground";
-import Navbar from "@/components/Navbar";
-import MasterAIChat from "@/components/MasterAIChat";
-import Index from "@/pages/Index";
-import Forge from "@/pages/Forge";
-import Vault from "@/pages/Vault";
-import Mint from "@/pages/Mint";
-import MintDocs from "@/pages/MintDocs";
-import SpaceGame from "@/pages/SpaceGame";
-import Mine from "@/pages/Mine";
-import Agents from "@/pages/Agents";
-import NotFound from "@/pages/NotFound";
+import {
+  createRouter,
+  createRoute,
+  createRootRoute,
+  RouterProvider,
+  Outlet,
+} from '@tanstack/react-router'
+import { Navbar } from '@/components/Navbar'
+import { Footer } from '@/components/Footer'
+import { Home } from '@/pages/Home'
+import { Explore } from '@/pages/Explore'
+import { ProjectDetail } from '@/pages/ProjectDetail'
+import { Upload } from '@/pages/Upload'
+import { Profile } from '@/pages/Profile'
 
-function App() {
-  return (
-    <BrowserRouter>
-      <div className="font-sans antialiased bg-bg text-fg min-h-screen overflow-x-hidden">
-        <CinematicBackground />
-        <Navbar />
-        <main className="relative z-10 pt-14">
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/forge" element={<Forge />} />
-            <Route path="/vault" element={<Vault />} />
-            <Route path="/mint" element={<Mint />} />
-            <Route path="/mint/docs" element={<MintDocs />} />
-            <Route path="/mine" element={<Mine />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/game" element={<SpaceGame />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-        <MasterAIChat />
-      </div>
-    </BrowserRouter>
-  );
+// Root layout
+const rootRoute = createRootRoute({
+  component: () => (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <Navbar />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: Home,
+})
+
+const exploreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/explore',
+  component: Explore,
+})
+
+const projectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/project/$id',
+  component: ProjectDetail,
+})
+
+const uploadRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/upload',
+  component: Upload,
+})
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile',
+  component: Profile,
+})
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  exploreRoute,
+  projectRoute,
+  uploadRoute,
+  profileRoute,
+])
+
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
 }
 
-export default App;
+export default function App() {
+  return <RouterProvider router={router} />
+}
