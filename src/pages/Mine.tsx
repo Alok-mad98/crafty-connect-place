@@ -8,6 +8,7 @@ import {
   NEXUS_AGENT_NFT_ADDRESS,
   CHAIN_ID,
 } from "@/lib/contracts";
+import Leaderboard from "@/components/Leaderboard";
 
 const MINING_ABI = [
   "function deployETH(uint8[] blocks) external payable",
