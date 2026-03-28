@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DATA_MINING_ADDRESS,
   NEXUS_TOKEN_ADDRESS,
