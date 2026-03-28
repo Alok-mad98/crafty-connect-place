@@ -86,6 +86,39 @@ export type Database = {
         }
         Relationships: []
       }
+      game_pnl: {
+        Row: {
+          id: string
+          last_round_id: number | null
+          pnl: number
+          rounds_played: number
+          total_wagered: number
+          total_won: number
+          updated_at: string
+          wallet: string
+        }
+        Insert: {
+          id?: string
+          last_round_id?: number | null
+          pnl?: number
+          rounds_played?: number
+          total_wagered?: number
+          total_won?: number
+          updated_at?: string
+          wallet: string
+        }
+        Update: {
+          id?: string
+          last_round_id?: number | null
+          pnl?: number
+          rounds_played?: number
+          total_wagered?: number
+          total_won?: number
+          updated_at?: string
+          wallet?: string
+        }
+        Relationships: []
+      }
       gtd_whitelist: {
         Row: {
           created_at: string
