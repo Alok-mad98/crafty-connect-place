@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DATA_MINING_ADDRESS,
   NEXUS_TOKEN_ADDRESS,
   NEXUS_AGENT_NFT_ADDRESS,
   CHAIN_ID,
 } from "@/lib/contracts";
+import Leaderboard from "@/components/Leaderboard";
 
 const MINING_ABI = [
   "function deployETH(uint8[] blocks) external payable",
@@ -265,6 +267,25 @@ export default function Mine() {
     setSelectedBlocks(new Set());
   };
 
+  // Helper to update PnL in database
+  const updatePnl = async (wallet: string, wagered: number, won: number, rId: number) => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      await fetch(`https://${projectId}.supabase.co/functions/v1/update-pnl`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`,
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({ entries: [{ wallet, wagered, won, roundId: rId }] }),
+      });
+    } catch (e) {
+      console.error("PnL update failed:", e);
+    }
+  };
+
   const handleDeploy = async () => {
     if (selectedBlocks.size === 0 || !amount) return;
     setLoading(true);
@@ -292,6 +313,12 @@ export default function Mine() {
         }
         const tx = await contract.deployNexus(blocks, perBlock);
         await tx.wait();
+      }
+
+      // Track wagered amount for PnL
+      const totalWagered = parseFloat(amount) * blocks.length;
+      if (wallets[0]?.address) {
+        updatePnl(wallets[0].address, totalWagered, 0, roundId).catch(console.error);
       }
 
       setDeployed(true);
@@ -1066,6 +1093,11 @@ export default function Mine() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* ── LEADERBOARD ── */}
+      <div className="mt-12 px-4 pb-16">
+        <Leaderboard />
       </div>
     </div>
   );
