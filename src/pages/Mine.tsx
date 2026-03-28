@@ -1068,6 +1068,11 @@ export default function Mine() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* ── LEADERBOARD ── */}
+      <div className="mt-12 px-4 pb-16">
+        <Leaderboard />
+      </div>
     </div>
   );
 }
