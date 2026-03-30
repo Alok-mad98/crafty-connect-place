@@ -1,6 +1,6 @@
 import { motion, type MotionValue } from "framer-motion";
-import { Link } from "react-router-dom";
-import Button from "@/components/ui/Button";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import EyeParticleCanvas from "@/components/EyeParticleCanvas";
 
 interface HeroSectionProps {

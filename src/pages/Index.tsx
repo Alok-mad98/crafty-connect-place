@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
-import { Link } from "react-router-dom";
-import Button from "@/components/ui/Button";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import EyeParticleCanvas from "@/components/EyeParticleCanvas";
 import ComputerParticleCanvas from "@/components/ComputerParticleCanvas";
 import OpenClawParticleCanvas from "@/components/OpenClawParticleCanvas";

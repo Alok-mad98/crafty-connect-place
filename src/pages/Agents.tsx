@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
+// Wallet/ethers dependencies removed — stubs used instead
 import {
   DATA_MINING_ADDRESS,
   NEXUS_TOKEN_ADDRESS,
@@ -95,8 +94,9 @@ const STRATEGIES: Record<Strategy, { name: string; desc: string; color: string; 
 // COMPONENT
 // ---------------------------------------------------------------------------
 export default function Agents() {
-  const { authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
+  const authenticated = false;
+  const login = () => alert("Wallet connection required.");
+  const wallets: any[] = [];
 
   // Balances
   const [ethBalance, setEthBalance] = useState("0");

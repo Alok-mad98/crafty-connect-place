@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { Link } from "@tanstack/react-router";
 
 /* ═══════════════════════════════════════════════════════════════════
    NEXUS NODE — SPACE DEFENDER v3
@@ -146,9 +145,8 @@ function getAllAssetKeys(): string[] {
    ═══════════════════════════════════════════════════════════════════ */
 export default function SpaceGame() {
   const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
-  const { authenticated } = usePrivy();
-  const { wallets } = useWallets();
-  const userWallet = wallets[0]?.address?.toLowerCase() || "";
+  const authenticated = false;
+  const userWallet = "";
   const isAdmin = userWallet === ADMIN_WALLET;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);

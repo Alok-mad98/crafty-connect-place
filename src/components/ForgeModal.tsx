@@ -1,14 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
-import Button from "./ui/Button";
-import {
-  AGENT_SKILLS_MARKET_ABI,
-  ERC20_ABI,
-  CONTRACT_ADDRESS,
-  USDC_ADDRESS,
-} from "@/lib/contracts";
+import { Button } from "./ui/button";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
@@ -23,8 +15,7 @@ interface ForgeState {
 }
 
 export default function ForgeModal() {
-  const { authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
+  const authenticated = false;
   const [state, setState] = useState<ForgeState>({
     file: null,
     title: "",
@@ -71,8 +62,8 @@ export default function ForgeModal() {
   };
 
   const handleSubmit = async () => {
-    if (!authenticated || !wallets[0]) {
-      login();
+    if (!authenticated) {
+      alert("Wallet connection required. Please install a wallet provider to launch skills.");
       return;
     }
 
@@ -88,130 +79,7 @@ export default function ForgeModal() {
     }
 
     setError(null);
-    setStatus("uploading");
-
-    try {
-      const formData = new FormData();
-      formData.append("file", state.file);
-
-      const SUPABASE_FN_URL = "https://xiofvutfjujnzdzlgmyc.supabase.co/functions/v1/upload-skill";
-      const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
-
-      const uploadRes = await fetch(SUPABASE_FN_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON}`,
-        },
-        body: formData,
-      });
-
-      const uploadPayload: { ipfsCid?: string; error?: string; details?: string } | null = await uploadRes.json().catch(() => null);
-      if (!uploadRes.ok) {
-        throw new Error(uploadPayload?.error || uploadPayload?.details || `IPFS upload failed (${uploadRes.status})`);
-      }
-      if (!uploadPayload?.ipfsCid) {
-        throw new Error("IPFS upload returned no CID");
-      }
-      const ipfsCid = uploadPayload.ipfsCid;
-
-      setStatus("approving");
-      const wallet = wallets[0];
-      await wallet.switchChain(8453);
-      const ethereumProvider = await wallet.getEthereumProvider();
-      const provider = new ethers.BrowserProvider(ethereumProvider);
-      const signer = await provider.getSigner();
-
-      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-      const listingFee = ethers.parseUnits("0.5", 6);
-      const fromAddr = await signer.getAddress();
-      const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
-      if (allowance < listingFee) {
-        // Encode approve manually to avoid BigInt serialization with Privy
-        const approveIface = new ethers.Interface(ERC20_ABI);
-        const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, listingFee]);
-        const approveHash = await ethereumProvider.request({
-          method: "eth_sendTransaction",
-          params: [{
-            from: fromAddr,
-            to: USDC_ADDRESS,
-            data: approveData,
-          }],
-        });
-        await provider.waitForTransaction(approveHash as string);
-      }
-
-      setStatus("minting");
-      const priceWei = ethers.parseUnits(state.price, 6);
-
-      // Build tx manually to avoid BigInt JSON serialization issues with Privy's RPC relay
-      const iface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
-      const txData = iface.encodeFunctionData("launchSkill", [ipfsCid, priceWei]);
-      const gasEstimate = await provider.estimateGas({
-        from: fromAddr,
-        to: CONTRACT_ADDRESS,
-        data: txData,
-      });
-      const feeData = await provider.getFeeData();
-
-      // Send via raw provider request with hex-string values (no BigInt in JSON)
-      const txHash = await ethereumProvider.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: fromAddr,
-          to: CONTRACT_ADDRESS,
-          data: txData,
-          gas: "0x" + (gasEstimate * BigInt(130) / BigInt(100)).toString(16),  // +30% buffer
-          ...(feeData.maxFeePerGas ? {
-            maxFeePerGas: "0x" + feeData.maxFeePerGas.toString(16),
-            maxPriorityFeePerGas: "0x" + (feeData.maxPriorityFeePerGas || BigInt(0)).toString(16),
-          } : {}),
-        }],
-      });
-      const receipt = await provider.waitForTransaction(txHash as string);
-
-      const log = receipt?.logs.find((l: ethers.Log) => {
-        try {
-          return iface.parseLog({ topics: [...l.topics], data: l.data })?.name === "SkillLaunched";
-        } catch {
-          return false;
-        }
-      });
-      const parsed = log ? iface.parseLog({ topics: [...log.topics], data: log.data }) : null;
-      const onchainId = parsed ? Number(parsed.args[0]) : undefined;
-
-      // Save skill metadata to database
-      const saveRes = await fetch(
-        `${SUPABASE_URL}/functions/v1/skills-api`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-          },
-          body: JSON.stringify({
-            title: state.title,
-            description: state.description,
-            price: state.price,
-            modelTags: state.modelTags,
-            ipfsCid,
-            onchainId,
-            creatorWallet: fromAddr,
-            txHash: receipt?.hash || txHash,
-          }),
-        }
-      );
-      if (!saveRes.ok) {
-        const errText = await saveRes.text();
-        console.error("Failed to save skill metadata:", errText);
-        throw new Error(`Skill minted onchain but failed to save metadata: ${errText}`);
-      }
-
-      setStatus("done");
-    } catch (err) {
-      console.error("Forge error:", err);
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setStatus("error");
-    }
+    alert("Wallet connection required to mint skills onchain.");
   };
 
   const statusMessages: Record<string, string> = {

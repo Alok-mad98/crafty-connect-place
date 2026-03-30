@@ -1,16 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useState, useCallback } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import SkillCard, { type SkillData } from "@/components/SkillCard";
-import Button from "@/components/ui/Button";
-import {
-  AGENT_SKILLS_MARKET_ABI,
-  ERC20_ABI,
-  CONTRACT_ADDRESS,
-  USDC_ADDRESS,
-} from "@/lib/contracts";
+import { Button } from "@/components/ui/button";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://xiofvutfjujnzdzlgmyc.supabase.co";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpb2Z2dXRmanVqbnpkemxnbXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMDcyNzQsImV4cCI6MjA4NzY4MzI3NH0.8a7yzvhXTYqHFXacCBvT3lCUiJRBkYAQ3kmDLYv2QX8";
@@ -18,10 +10,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciO
 export default function Vault() {
   const [skills, setSkills] = useState<SkillData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set());
-  const { authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
 
   const fetchSkills = useCallback(async () => {
     try {
@@ -39,121 +28,12 @@ export default function Vault() {
     }
   }, []);
 
-  const fetchPurchases = useCallback(async () => {
-    if (!wallets[0]) return;
-    try {
-      const wallet = wallets[0].address?.toLowerCase();
-      if (!wallet) return;
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/skills-api/purchases/${wallet}`,
-        {
-          headers: {
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-          },
-        }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setPurchasedIds(new Set(data.purchasedSkillIds || []));
-      }
-    } catch (err) {
-      console.error("Failed to fetch purchases:", err);
-    }
-  }, [wallets]);
-
   useEffect(() => {
     fetchSkills();
   }, [fetchSkills]);
 
-  useEffect(() => {
-    if (authenticated && wallets[0]) {
-      fetchPurchases();
-    }
-  }, [authenticated, wallets, fetchPurchases]);
-
-  const { login } = usePrivy();
-
   const handleBuy = async (skill: SkillData) => {
-    if (!authenticated) {
-      login();
-      return;
-    }
-    if (!wallets[0]) {
-      alert("No wallet found. Please connect a wallet first.");
-      return;
-    }
-    setPurchasing(skill.id);
-    try {
-      const wallet = wallets[0];
-      await wallet.switchChain(8453);
-      const ethereumProvider = await wallet.getEthereumProvider();
-      const provider = new ethers.BrowserProvider(ethereumProvider);
-      const signer = await provider.getSigner();
-      const fromAddr = await signer.getAddress();
-      const priceWei = ethers.parseUnits(skill.price, 6);
-
-      let txHash: string;
-
-      if (skill.onchainId != null) {
-        // Onchain skill — use contract buySkill
-        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-        const allowance = await usdc.allowance(fromAddr, CONTRACT_ADDRESS);
-        if (allowance < priceWei) {
-          const approveIface = new ethers.Interface(ERC20_ABI);
-          const approveData = approveIface.encodeFunctionData("approve", [CONTRACT_ADDRESS, priceWei]);
-          const approveHash = await ethereumProvider.request({
-            method: "eth_sendTransaction",
-            params: [{ from: fromAddr, to: USDC_ADDRESS, data: approveData }],
-          });
-          await provider.waitForTransaction(approveHash as string);
-        }
-        const buyIface = new ethers.Interface(AGENT_SKILLS_MARKET_ABI);
-        const buyData = buyIface.encodeFunctionData("buySkill", [skill.onchainId]);
-        txHash = await ethereumProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: fromAddr, to: CONTRACT_ADDRESS, data: buyData }],
-        }) as string;
-      } else {
-        // No onchain ID — direct USDC transfer to creator
-        const creatorAddr = skill.creator?.walletAddress;
-        if (!creatorAddr) {
-          alert("Skill creator address not found.");
-          setPurchasing(null);
-          return;
-        }
-        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-        const transferIface = new ethers.Interface([
-          "function transfer(address to, uint256 amount) external returns (bool)",
-        ]);
-        const transferData = transferIface.encodeFunctionData("transfer", [creatorAddr, priceWei]);
-        txHash = await ethereumProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: fromAddr, to: USDC_ADDRESS, data: transferData }],
-        }) as string;
-      }
-
-      await provider.waitForTransaction(txHash);
-
-      // Record purchase in DB
-      await fetch(`${SUPABASE_URL}/functions/v1/skills-api/purchase`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-        },
-        body: JSON.stringify({
-          skillId: skill.id,
-          buyerWallet: wallet.address?.toLowerCase(),
-          txHash,
-        }),
-      });
-
-      setPurchasedIds((prev) => new Set(prev).add(skill.id));
-    } catch (err) {
-      console.error("Purchase failed:", err);
-    } finally {
-      setPurchasing(null);
-    }
+    alert("Wallet connection required. Please install a wallet provider to purchase skills.");
   };
 
   const handleConnect = (skill: SkillData) => {

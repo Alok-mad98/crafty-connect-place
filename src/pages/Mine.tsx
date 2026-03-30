@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
+// Wallet/ethers dependencies removed — stubs used instead
 import { supabase } from "@/integrations/supabase/client";
 import {
   DATA_MINING_ADDRESS,
@@ -49,8 +48,9 @@ const MULT_DISPLAY = ["1.0x", "1.3x", "1.8x", "2.5x"];
 // COMPONENT
 // ---------------------------------------------------------------------------
 export default function Mine() {
-  const { authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
+  const authenticated = false;
+  const login = () => alert("Wallet connection required.");
+  const wallets: any[] = [];
 
   // Game state
   const [roundId, setRoundId] = useState(0);

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import Button from "./ui/Button";
+import { Button } from "./ui/button";
 import { IPFS_GATEWAY } from "@/lib/contracts";
 
 export interface SkillData {

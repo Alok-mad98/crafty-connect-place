@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 const ADMIN_WALLET = "0xc6525dbbc9ac18fbf9ec93c219670b0dbb6cf2d3";
 const MAX_SUPPLY = 779;
@@ -83,9 +82,9 @@ function Countdown({ target, label }: { target: number; label: string }) {
 }
 
 export default function Mint() {
-  const { authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
-  const userWallet = wallets[0]?.address?.toLowerCase() || "";
+  const authenticated = false;
+  const login = () => alert("Wallet connection required.");
+  const userWallet = "";
   const isAdmin = userWallet === ADMIN_WALLET;
 
   const [tab, setTab] = useState<Tab>("mint");
@@ -163,49 +162,14 @@ export default function Mint() {
 
   // Admin toggle
   const handleToggle = async () => {
-    if (!wallets[0] || toggling) return;
-    setToggling(true);
-    try {
-      const provider = await wallets[0].getEthereumProvider();
-      const address = wallets[0].address;
-      const newActive = !mintState.mintActive;
-      const message = `nexus:toggle:${newActive}:${Date.now()}`;
-      const signature = await provider.request({ method: "personal_sign", params: [message, address] });
-      const res = await fetch(`${API_BASE}/admin/toggle`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: newActive, adminSignature: signature, message }),
-      });
-      if (res.ok) setMintState(prev => ({ ...prev, mintActive: newActive }));
-    } catch {} finally { setToggling(false); }
+    alert("Wallet connection required for admin actions.");
   };
 
   // Human mint
   const handleMint = useCallback(async () => {
-    if (!wallets[0] || minting) return;
-    setMinting(true);
-    setMintResult(null);
-    try {
-      const provider = await wallets[0].getEthereumProvider();
-      const address = wallets[0].address;
-      const message = `nexus:human-mint:${address}:${Date.now()}`;
-      const signature = await provider.request({ method: "personal_sign", params: [message, address] });
-
-      const res = await fetch(`${API_BASE}/human-mint`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: address, signature, message }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setMintResult({ success: true, message: data.message, txHash: data.txHash });
-        setWlStatus(prev => prev ? { ...prev, canMint: false, minted: true, reason: "Already minted" } : prev);
-      } else {
-        setMintResult({ success: false, message: data.error || "Mint failed" });
-      }
-    } catch (e) {
-      setMintResult({ success: false, message: e instanceof Error ? e.message : "Mint failed" });
-    } finally { setMinting(false); }
-  }, [wallets, minting]);
+    if (minting) return;
+    alert("Wallet connection required to mint.");
+  }, [minting]);
 
   const eligibility = getEligibilityStatus();
 

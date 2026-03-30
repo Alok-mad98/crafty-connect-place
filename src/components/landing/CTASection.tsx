@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import Button from "@/components/ui/Button";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 
 export default function CTASection() {
   return (
